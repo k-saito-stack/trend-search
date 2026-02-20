@@ -5,15 +5,13 @@ const { loadDotEnv } = require('./src/loadEnv');
 
 const {
   ensureDataFiles,
-  readThemes,
-  createTheme,
-  updateTheme,
-  deleteTheme,
+  readPrimaryTheme,
   getRunsByTheme,
-  getLatestRunsMap,
+  getLatestRunByTheme,
 } = require('./src/storage');
-const { runThemeById, runAllEnabledThemes } = require('./src/trendService');
+const { runTheme } = require('./src/trendService');
 const { startDailyScheduler } = require('./src/scheduler');
+const { getSourceCatalog, summarizeSourceCost } = require('./src/sourceCatalog');
 
 loadDotEnv();
 
@@ -114,19 +112,14 @@ function parseRequestBody(req) {
 }
 
 function buildSnapshot() {
-  const themes = readThemes();
-  const latestRunsMap = getLatestRunsMap();
-
-  const latestRuns = themes.map((theme) => ({
-    themeId: theme.id,
-    run: latestRunsMap[theme.id] || null,
-  }));
+  const theme = readPrimaryTheme();
+  const latestRun = getLatestRunByTheme(theme.id);
 
   return {
     now: new Date().toISOString(),
     timezone: 'Asia/Tokyo',
-    themes,
-    latestRuns,
+    topic: theme.name,
+    latestRun,
   };
 }
 
@@ -135,10 +128,18 @@ async function handleApi(req, res, urlObj) {
   const pathname = urlObj.pathname;
 
   if (method === 'GET' && pathname === '/api/health') {
+    const sourceCatalog = getSourceCatalog();
+    const sourceCost = summarizeSourceCost(sourceCatalog);
+
     sendJson(res, 200, {
       ok: true,
       hasApiKey: Boolean(process.env.XAI_API_KEY),
+      hasXaiApiKey: Boolean(process.env.XAI_API_KEY),
+      xCollectionEnabled: process.env.SOURCE_ENABLE_X !== '0',
       model: process.env.XAI_MODEL || 'grok-4-1-fast',
+      sourceCount: sourceCost.total,
+      freeSourceCount: sourceCost.free,
+      apiSourceCount: sourceCost.api,
     });
     return;
   }
@@ -148,73 +149,26 @@ async function handleApi(req, res, urlObj) {
     return;
   }
 
-  if (method === 'GET' && pathname === '/api/themes') {
-    sendJson(res, 200, { themes: readThemes() });
-    return;
-  }
-
-  if (method === 'POST' && pathname === '/api/themes') {
-    const body = await parseRequestBody(req);
-    const theme = createTheme(body);
-    sendJson(res, 201, { theme });
+  if (method === 'GET' && pathname === '/api/sources') {
+    sendJson(res, 200, { sources: getSourceCatalog() });
     return;
   }
 
   if (method === 'POST' && pathname === '/api/run') {
-    const body = await parseRequestBody(req);
-
-    if (body.themeId) {
-      const run = await runThemeById(body.themeId);
-      sendJson(res, 200, { mode: 'single', run });
-      return;
-    }
-
-    const results = await runAllEnabledThemes();
-    sendJson(res, 200, { mode: 'all', results });
+    await parseRequestBody(req);
+    const theme = readPrimaryTheme();
+    const run = await runTheme(theme);
+    sendJson(res, 200, { mode: 'single', run });
     return;
   }
 
   if (method === 'GET' && pathname === '/api/runs') {
-    const themeId = urlObj.searchParams.get('themeId');
+    const theme = readPrimaryTheme();
     const limit = Number(urlObj.searchParams.get('limit') || 20);
 
-    if (!themeId) {
-      sendJson(res, 400, { error: 'themeId が必要です' });
-      return;
-    }
-
-    const runs = getRunsByTheme(themeId, limit);
+    const runs = getRunsByTheme(theme.id, limit);
     sendJson(res, 200, { runs });
     return;
-  }
-
-  const themeMatch = pathname.match(/^\/api\/themes\/([^/]+)$/);
-  if (themeMatch) {
-    const themeId = decodeURIComponent(themeMatch[1]);
-
-    if (method === 'PATCH') {
-      const body = await parseRequestBody(req);
-      const allowed = {
-        name: body.name,
-        query: body.query,
-        periodDays: body.periodDays,
-        enabled: body.enabled,
-      };
-
-      const cleaned = Object.fromEntries(
-        Object.entries(allowed).filter(([, value]) => value !== undefined),
-      );
-
-      const theme = updateTheme(themeId, cleaned);
-      sendJson(res, 200, { theme });
-      return;
-    }
-
-    if (method === 'DELETE') {
-      deleteTheme(themeId);
-      sendJson(res, 200, { ok: true });
-      return;
-    }
   }
 
   sendJson(res, 404, { error: 'Not Found' });

@@ -102,7 +102,16 @@ function makeRun(theme, index) {
   const materials = clusters
     .flatMap((cluster) => cluster.posts)
     .sort((a, b) => b.likes - a.likes)
-    .slice(0, 10);
+    .slice(0, 10)
+    .map((post, materialIndex) => ({
+      ...post,
+      title: post.summary.slice(0, 42),
+      metricLabel: 'likes',
+      metricValue: post.likes,
+      sourceName: materialIndex % 2 === 0 ? 'X / Grok x_search' : 'Google News / 書評・レビュー',
+      sourceCategory: materialIndex % 2 === 0 ? 'social' : 'book_review',
+      publishedAt: createdAt,
+    }));
 
   return {
     id: id('run'),
@@ -121,6 +130,37 @@ function makeRun(theme, index) {
       clusters,
       themes: ['現代新書', '社会', '読書', '新刊', '議論'],
       materials,
+      sourceStats: [
+        {
+          sourceId: 'x_grok_social',
+          sourceName: 'X / Grok x_search',
+          category: 'social',
+          status: 'ok',
+          costTier: 'api',
+          count: 8,
+          durationMs: 2300,
+          error: '',
+        },
+        {
+          sourceId: 'news_book_review',
+          sourceName: 'Google News / 書評・レビュー',
+          category: 'book_review',
+          status: 'ok',
+          costTier: 'free',
+          count: 7,
+          durationMs: 420,
+          error: '',
+        },
+      ],
+      coverage: {
+        sourceTotal: 2,
+        sourceOk: 2,
+        sourceError: 0,
+        sourceSkipped: 0,
+        signals: materials.length,
+        beforeDedupe: materials.length + 2,
+        duplicateDrop: 2,
+      },
     },
     rawText: JSON.stringify({ clusters, materials }),
   };

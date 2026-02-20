@@ -5,6 +5,10 @@ const { createId } = require('./utils');
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const THEMES_FILE = path.join(DATA_DIR, 'themes.json');
 const TREND_FILE = path.join(DATA_DIR, 'trends.json');
+const FIXED_THEME_NAME = '出版業界と周辺業界';
+const FIXED_THEME_QUERY =
+  '出版業界 周辺業界 出版社 書店 新刊 書評 PR TIMES 人事 異動 テレビ ラジオ ベストセラー Amazon Kindle';
+const FIXED_PERIOD_DAYS = 1;
 
 function ensureDataFiles() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -12,19 +16,8 @@ function ensureDataFiles() {
   }
 
   if (!fs.existsSync(THEMES_FILE)) {
-    const now = new Date().toISOString();
-    const defaultThemes = [
-      {
-        id: createId('theme'),
-        name: 'デザイン AI',
-        query: 'デザイン AI',
-        periodDays: 2,
-        enabled: true,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ];
-    fs.writeFileSync(THEMES_FILE, JSON.stringify(defaultThemes, null, 2));
+    const primary = buildPrimaryTheme(null);
+    fs.writeFileSync(THEMES_FILE, JSON.stringify([primary], null, 2));
   }
 
   if (!fs.existsSync(TREND_FILE)) {
@@ -35,6 +28,18 @@ function ensureDataFiles() {
       }, null, 2),
     );
   }
+}
+
+function buildPrimaryTheme(current, now = new Date().toISOString()) {
+  return {
+    id: current?.id || createId('theme'),
+    name: FIXED_THEME_NAME,
+    query: FIXED_THEME_QUERY,
+    periodDays: FIXED_PERIOD_DAYS,
+    enabled: true,
+    createdAt: current?.createdAt || now,
+    updatedAt: current?.updatedAt || now,
+  };
 }
 
 function readJson(filePath, fallback) {
@@ -52,8 +57,27 @@ function writeJson(filePath, data) {
 
 function readThemes() {
   ensureDataFiles();
+  const now = new Date().toISOString();
   const themes = readJson(THEMES_FILE, []);
-  return Array.isArray(themes) ? themes : [];
+  const current = Array.isArray(themes) ? themes[0] : null;
+  const primary = buildPrimaryTheme(current, now);
+
+  const changed =
+    !current ||
+    current.name !== primary.name ||
+    current.query !== primary.query ||
+    Number(current.periodDays) !== primary.periodDays ||
+    current.enabled !== true ||
+    !Array.isArray(themes) ||
+    themes.length !== 1;
+
+  if (changed) {
+    const refreshed = { ...primary, updatedAt: now };
+    writeJson(THEMES_FILE, [refreshed]);
+    return [refreshed];
+  }
+
+  return [primary];
 }
 
 function writeThemes(themes) {
@@ -61,79 +85,15 @@ function writeThemes(themes) {
 }
 
 function createTheme(input) {
-  const now = new Date().toISOString();
-  const theme = {
-    id: createId('theme'),
-    name: String(input.name || '').trim(),
-    query: String(input.query || '').trim(),
-    periodDays: Number(input.periodDays || 2),
-    enabled: input.enabled !== false,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  if (!theme.name || !theme.query) {
-    throw new Error('name と query は必須です');
-  }
-
-  if (!Number.isFinite(theme.periodDays) || theme.periodDays < 1 || theme.periodDays > 30) {
-    throw new Error('periodDays は 1-30 の整数で指定してください');
-  }
-
-  theme.periodDays = Math.floor(theme.periodDays);
-
-  const themes = readThemes();
-  themes.push(theme);
-  writeThemes(themes);
-  return theme;
+  throw new Error('固定テーマモードのため createTheme は無効です');
 }
 
 function updateTheme(themeId, patch) {
-  const themes = readThemes();
-  const idx = themes.findIndex((item) => item.id === themeId);
-  if (idx < 0) {
-    throw new Error('theme が見つかりません');
-  }
-
-  const current = themes[idx];
-  const next = {
-    ...current,
-    ...patch,
-    updatedAt: new Date().toISOString(),
-  };
-
-  if (!String(next.name || '').trim()) {
-    throw new Error('name は空にできません');
-  }
-
-  if (!String(next.query || '').trim()) {
-    throw new Error('query は空にできません');
-  }
-
-  const days = Number(next.periodDays);
-  if (!Number.isFinite(days) || days < 1 || days > 30) {
-    throw new Error('periodDays は 1-30 の整数で指定してください');
-  }
-
-  next.name = String(next.name).trim();
-  next.query = String(next.query).trim();
-  next.periodDays = Math.floor(days);
-  next.enabled = Boolean(next.enabled);
-
-  themes[idx] = next;
-  writeThemes(themes);
-  return next;
+  throw new Error('固定テーマモードのため updateTheme は無効です');
 }
 
 function deleteTheme(themeId) {
-  const themes = readThemes();
-  const filtered = themes.filter((item) => item.id !== themeId);
-  if (filtered.length === themes.length) {
-    throw new Error('theme が見つかりません');
-  }
-
-  writeThemes(filtered);
-  return true;
+  throw new Error('固定テーマモードのため deleteTheme は無効です');
 }
 
 function readTrendStore() {
@@ -183,9 +143,14 @@ function getLatestRunsMap() {
   return map;
 }
 
+function readPrimaryTheme() {
+  return readThemes()[0];
+}
+
 module.exports = {
   ensureDataFiles,
   readThemes,
+  readPrimaryTheme,
   createTheme,
   updateTheme,
   deleteTheme,

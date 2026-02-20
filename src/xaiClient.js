@@ -1,7 +1,7 @@
 const { ensureArray } = require('./utils');
 
 function buildSystemPrompt() {
-  return `You are an X (Twitter) trend analysis AI for the Japanese community.
+  return `You are an X (Twitter) analyst focused on Japanese publishing and adjacent industries.
 Use the x_search tool to research posts, following the steps below.
 Return ONLY valid JSON — no markdown, no explanation, no code blocks.
 
@@ -34,7 +34,7 @@ Return ONLY valid JSON — no markdown, no explanation, no code blocks.
 - materials = all cluster posts merged, sorted by likes descending, top 10 only
 - summary must be Japanese and paraphrased
 - avoid unverified rumors
-- prioritize official announcements and first-person reports`;
+- prioritize official announcements, book launches, reviews, personnel updates, and media publicity`;
 }
 
 async function callResponsesApi({ apiKey, model, queryWithSince }) {

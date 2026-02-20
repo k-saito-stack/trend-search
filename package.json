@@ -2,7 +2,7 @@
   "name": "trend-search-dashboard",
   "version": "0.1.0",
   "private": true,
-  "description": "X trend collector with xAI + stylish dashboard + custom themes",
+  "description": "Publishing trend dashboard with multi-source collectors (X, news RSS, rankings)",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",

@@ -1,6 +1,7 @@
-const { callResponsesApi, parseGrokResponse } = require('./xaiClient');
 const { appendRun, readThemes } = require('./storage');
 const { createId, getJstParts, getSinceDate, getPeriodLabel } = require('./utils');
+const { collectThemeSignals } = require('./sourceCollector');
+const { buildTrendPayload } = require('./signalDigest');
 
 function buildUserMessage(theme) {
   const sinceDate = getSinceDate(theme.periodDays);
@@ -14,18 +15,12 @@ async function runTheme(theme, options = {}) {
   const apiKey = options.apiKey || process.env.XAI_API_KEY;
   const model = options.model || process.env.XAI_MODEL || 'grok-4-1-fast';
 
-  if (!apiKey) {
-    throw new Error('XAI_API_KEY が設定されていません');
-  }
-
   const userMessage = buildUserMessage(theme);
-  const raw = await callResponsesApi({
+  const collection = await collectThemeSignals(theme, {
     apiKey,
     model,
-    queryWithSince: userMessage.text,
   });
-
-  const parsed = parseGrokResponse(raw);
+  const digest = buildTrendPayload(theme, collection);
   const now = new Date();
   const jst = getJstParts(now);
 
@@ -36,14 +31,14 @@ async function runTheme(theme, options = {}) {
     query: theme.query,
     periodDays: theme.periodDays,
     periodLabel: getPeriodLabel(theme.periodDays),
-    model,
-    queryWithSince: userMessage.text,
+    model: apiKey ? model : 'no_x_model',
+    queryWithSince: digest.queryWithSince || userMessage.text,
     sinceDate: userMessage.sinceDate,
     runDateJst: jst.date,
     createdAt: now.toISOString(),
-    parseStatus: parsed.ok ? 'ok' : 'fallback_text',
-    payload: parsed.data,
-    rawText: parsed.rawText,
+    parseStatus: digest.parseStatus,
+    payload: digest.payload,
+    rawText: digest.rawText,
   };
 
   appendRun(run);
@@ -67,7 +62,7 @@ async function runAllEnabledThemes(options = {}) {
   const results = [];
   for (const theme of themes) {
     try {
-      // xAI API の失敗で全体停止しないためテーマ単位で継続する
+      // ソース単位で失敗しても処理継続するが、念のためテーマ単位でも継続する
       const run = await runTheme(theme, options);
       results.push({ themeId: theme.id, ok: true, run });
     } catch (error) {

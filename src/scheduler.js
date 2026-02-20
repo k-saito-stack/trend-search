@@ -1,4 +1,4 @@
-const { readThemes, hasRunOnDate } = require('./storage');
+const { readPrimaryTheme, hasRunOnDate } = require('./storage');
 const { runTheme } = require('./trendService');
 const { getJstParts } = require('./utils');
 
@@ -19,7 +19,7 @@ function startDailyScheduler(options = {}) {
     }
     lastMinuteKey = minuteKey;
 
-    if (now.hour !== '07' || now.minute !== '00') {
+    if (now.hour !== '09' || now.minute !== '00') {
       return;
     }
 
@@ -30,24 +30,22 @@ function startDailyScheduler(options = {}) {
     inFlight = true;
 
     try {
-      const themes = readThemes().filter((theme) => theme.enabled);
-      if (themes.length === 0) {
-        log('[scheduler] enabled theme がないためスキップ');
+      const theme = readPrimaryTheme();
+      if (!theme || theme.enabled === false) {
+        log('[scheduler] テーマが無効のためスキップ');
         return;
       }
 
-      for (const theme of themes) {
-        if (hasRunOnDate(theme.id, now.date)) {
-          log(`[scheduler] ${theme.name} は ${now.date} 実行済みのためスキップ`);
-          continue;
-        }
+      if (hasRunOnDate(theme.id, now.date)) {
+        log(`[scheduler] ${theme.name} は ${now.date} 実行済みのためスキップ`);
+        return;
+      }
 
-        try {
-          await runTheme(theme, options);
-          log(`[scheduler] ${theme.name} の収集が完了`);
-        } catch (error) {
-          log(`[scheduler] ${theme.name} の収集に失敗: ${error.message}`);
-        }
+      try {
+        await runTheme(theme, options);
+        log(`[scheduler] ${theme.name} の収集が完了`);
+      } catch (error) {
+        log(`[scheduler] ${theme.name} の収集に失敗: ${error.message}`);
       }
     } finally {
       inFlight = false;

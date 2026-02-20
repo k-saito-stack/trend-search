@@ -3,191 +3,46 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>State of Trend Work</title>
+    <title>Today's Insights</title>
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23151b2b'/%3E%3Ccircle cx='22' cy='22' r='8' fill='%23ff8a6f'/%3E%3Ccircle cx='42' cy='22' r='8' fill='%23f4ba53'/%3E%3Ccircle cx='32' cy='42' r='8' fill='%2368c5e3'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1a2f'/%3E%3Ccircle cx='21' cy='21' r='8' fill='%23ff7f50'/%3E%3Ccircle cx='43' cy='21' r='8' fill='%23f4c542'/%3E%3Ccircle cx='32' cy='43' r='8' fill='%2347b4d8'/%3E%3C/svg%3E"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="bg-layer" aria-hidden="true"></div>
+    <div class="bg-noise" aria-hidden="true"></div>
 
-    <header class="site-header">
-      <div class="site-brand">
-        <div class="site-mark">
-          <span class="dot dot-coral" aria-hidden="true"></span>
-          <span class="dot dot-yellow" aria-hidden="true"></span>
-          <span class="dot dot-sky" aria-hidden="true"></span>
-          <p class="site-kicker">Trend Operations Report</p>
+    <main class="page-shell">
+      <section class="hero">
+        <p class="hero-kicker">Today's Insights</p>
+        <h1 id="todaySummary" class="hero-summary">今日の出版業界シグナルを準備しています。</h1>
+        <div class="hero-controls">
+          <button id="refreshBtn" class="refresh-btn" type="button">Refresh</button>
+          <p id="lastUpdated" class="last-updated">毎朝 09:00 JST 自動更新 / それ以外は Refresh 実行</p>
         </div>
-        <h1 class="site-title">State of Trend Work</h1>
-      </div>
-      <div class="site-actions">
-        <span id="healthBadge" class="status-pill">Loading...</span>
-        <button id="settingsOpenBtn" class="btn btn-ghost" type="button">テーマ設定</button>
-      </div>
-    </header>
-
-    <main class="report-layout">
-      <section class="intro-grid reveal-on-scroll">
-        <article class="intro-card">
-          <p class="eyebrow">2026 Insights</p>
-          <h2 class="display-headline">AI時代のトレンド運用を、毎日ひと目で把握する</h2>
-          <p class="intro-copy">
-            Asanaの「State of AI at Work」にある、章立てと統計を軸に読ませる構成を参考に、収集結果をストーリーとして読めるUIへ再構成しています。
-          </p>
-          <div class="ai-trend-strip" aria-label="AI adoption trend sample">
-            <article class="trend-cell">
-              <p class="trend-year">2023</p>
-              <p class="trend-value">36<span>%</span></p>
-            </article>
-            <article class="trend-cell">
-              <p class="trend-year">2024</p>
-              <p class="trend-value">52<span>%</span></p>
-            </article>
-            <article class="trend-cell">
-              <p class="trend-year">2025</p>
-              <p class="trend-value">70<span>%</span></p>
-            </article>
+        <div class="headline-ribbon" aria-hidden="true">
+          <div class="headline-track">
+            <p id="headlineA">Publishing Signals • Publishing Signals •</p>
+            <p id="headlineB">Publishing Signals • Publishing Signals •</p>
           </div>
-
-          <div class="control-area">
-            <label class="field" for="themePicker">
-              Tracking theme
-              <select id="themePicker"></select>
-            </label>
-            <div class="action-row">
-              <button id="runSelectedBtn" class="btn btn-primary" type="button">選択テーマを収集</button>
-              <button id="runAllBtn" class="btn btn-secondary" type="button">有効テーマを一括収集</button>
-            </div>
-          </div>
-
-          <div class="signal-tape" aria-hidden="true">
-            <div class="signal-track">
-              <p id="heroTapeTextA">STATE OF TREND WORK • TRACKING SIGNALS • DAILY BRIEFING •</p>
-              <p id="heroTapeTextB">STATE OF TREND WORK • TRACKING SIGNALS • DAILY BRIEFING •</p>
-            </div>
-          </div>
-        </article>
-
-        <aside class="chapter-card">
-          <p class="chapter-kicker">Chapters</p>
-          <ol class="chapter-list">
-            <li>Signal Overview</li>
-            <li>Cluster Shifts</li>
-            <li>Source Highlights</li>
-            <li>Historical Trends</li>
-          </ol>
-          <p class="chapter-note">左の内容は毎回の収集結果に応じて更新されます。</p>
-        </aside>
-      </section>
-
-      <section class="snapshot-panel reveal-on-scroll">
-        <div class="panel-head">
-          <h3>Current Snapshot</h3>
-          <span id="lastRunMeta" class="meta-chip">未実行</span>
         </div>
-        <div id="overviewSummary" class="snapshot-body"></div>
       </section>
 
-      <section class="content-grid">
-        <article class="panel reveal-on-scroll">
-          <div class="panel-head">
-            <h3>Signals by Cluster</h3>
-          </div>
-          <div id="clusters" class="cluster-grid"></div>
-        </article>
-
-        <article class="panel reveal-on-scroll">
-          <div class="panel-head">
-            <h3>Source Highlights</h3>
-          </div>
-          <div id="materials" class="materials-list"></div>
-        </article>
+      <section class="theme-cloud">
+        <div id="topicTags" class="topic-tags"></div>
       </section>
 
-      <section class="history-panel panel reveal-on-scroll">
-        <div class="panel-head">
-          <h3>Run History</h3>
-        </div>
-        <div id="history" class="history-list"></div>
-      </section>
+      <section id="feedGrid" class="feed-grid"></section>
     </main>
 
-    <div id="settingsBackdrop" class="settings-backdrop hidden"></div>
-    <aside id="settingsPanel" class="settings-panel hidden" aria-hidden="true">
-      <div class="settings-panel-head">
-        <h3>Theme Workspace</h3>
-        <button id="settingsCloseBtn" class="btn btn-ghost" type="button">Close</button>
-      </div>
-      <div class="settings-panel-body">
-        <article class="settings-card">
-          <div class="settings-card-head">
-            <h4>Theme List</h4>
-          </div>
-          <div class="settings-card-body">
-            <div id="themeList" class="theme-list"></div>
-          </div>
-        </article>
-
-        <article class="settings-card">
-          <div class="settings-card-head">
-            <h4>Selected Theme</h4>
-          </div>
-          <div class="settings-card-body">
-            <form id="updateThemeForm" class="form-grid">
-              <label>
-                テーマ（名前=クエリ）
-                <input id="editThemeTerm" name="themeTerm" required />
-              </label>
-              <label>
-                期間(日)
-                <input id="editPeriod" name="periodDays" type="number" min="1" max="30" required />
-              </label>
-              <label class="checkbox-label">
-                <input id="editEnabled" name="enabled" type="checkbox" />
-                毎朝7:00 JST の自動収集を有効
-              </label>
-              <div class="row-actions">
-                <button class="btn btn-primary" type="submit">保存</button>
-                <button id="deleteThemeBtn" class="btn btn-danger" type="button">削除</button>
-              </div>
-            </form>
-          </div>
-        </article>
-
-        <article class="settings-card">
-          <div class="settings-card-head">
-            <h4>Add New Theme</h4>
-          </div>
-          <div class="settings-card-body">
-            <form id="createThemeForm" class="form-grid">
-              <label>
-                テーマ（名前=クエリ）
-                <input name="themeTerm" placeholder="例: 出版業界" required />
-              </label>
-              <label>
-                期間(日)
-                <input name="periodDays" type="number" min="1" max="30" value="2" required />
-              </label>
-              <div class="row-actions">
-                <button class="btn btn-primary" type="submit">追加</button>
-              </div>
-            </form>
-          </div>
-        </article>
-      </div>
-    </aside>
-
     <div id="toast" class="toast" aria-live="polite"></div>
-
     <script src="/app.js" defer></script>
   </body>
 </html>

@@ -1,69 +1,47 @@
 # Trend Atelier
 
-詳細な説明書は `MANUAL.md` を参照してください。
+出版業界とその周辺業界の話題を、低コスト中心で横断収集するローカルWebアプリです。
 
-記事の「Grok + GAS で毎朝トレンド収集」の考え方を、以下の要件で実装したローカルWebアプリです。
-
-- オシャレなダッシュボードでトレンドを可視化
-- 任意テーマを複数登録して自動集計
-- xAI Grok (`x_search`) で 2段階検索（クラスタ抽出 → 再検索）
-
-## できること
-
-- テーマ管理
-  - 追加 / 編集 / 削除
-  - クエリ文字列、期間（日数）、自動収集ON/OFF
-- 収集実行
-  - 毎朝 7:00 JST に enabled テーマを自動実行
-  - 手動で単一テーマ or 全テーマ実行
-- ダッシュボード表示
-  - クラスター（最大5）
-  - materials（いいね順上位10）
-  - 実行履歴（最新10件）
+- テーマは固定: `出版業界と周辺業界`
+- 毎朝 `09:00 JST` に自動実行
+- それ以外は `Refresh` ボタンで都度実行
+- 収集ソース: Google News RSS / Amazonランキング / 任意で X(Grok)
 
 ## クイックスタート
 
 ```bash
 cp .env.example .env
-# .env に XAI_API_KEY を設定
 npm run start
 ```
 
 起動後: `http://localhost:3000`
 
-デモ表示を先に確認したい場合:
-```bash
-npm run demo:seed
-```
-
 ## 環境変数
 
-- `XAI_API_KEY` (必須): xAI API key
+- `XAI_API_KEY` (任意): X(Grok) 収集を使う場合
 - `XAI_MODEL` (任意): 既定値 `grok-4-1-fast`
+- `SOURCE_ENABLE_X` (任意): `0` で X収集を無効化
+- `ENABLED_SOURCE_IDS` (任意): 収集元IDを絞り込み
+- `SOURCE_HTTP_TIMEOUT_MS` (任意): 外部取得タイムアウト（ms）
+- `SOURCE_CONCURRENCY` (任意): 並列収集数
 - `PORT` (任意): 既定値 `3000`
 - `RUN_ON_START` (任意): `1` のとき起動時に scheduler tick を1回実行
 
-## 実装構成
-
-- `server.js`: HTTPサーバー / API / 静的配信
-- `src/xaiClient.js`: xAI Responses API 呼び出し + JSON抽出
-- `src/trendService.js`: テーマ単位の収集処理
-- `src/scheduler.js`: 毎朝 7:00 JST 実行
-- `src/storage.js`: テーマ・収集結果のローカル保存（`data/*.json`）
-- `public/*`: ダッシュボードUI
-
 ## API
 
-- `GET /api/health`
-- `GET /api/snapshot`
-- `GET /api/themes`
-- `POST /api/themes`
-- `PATCH /api/themes/:id`
-- `DELETE /api/themes/:id`
-- `POST /api/run` (`{ "themeId": "..." }` で単一、body空で全テーマ)
-- `GET /api/runs?themeId=...&limit=10`
+- `GET /api/snapshot`: 現在の topic と最新run
+- `POST /api/run`: 手動Refresh実行
+- `GET /api/runs?limit=10`: 最新履歴
+- `GET /api/sources`: 有効な収集ソース一覧
+- `GET /api/health`: 状態確認
 
-## 注意
+## 主な構成
 
-- 本実装はデータ保存先をローカルJSONにしています。
-- 本番運用する場合は DB 化（PostgreSQL など）と認証を推奨します。
+- `src/sourceCatalog.js`: ソース定義
+- `src/sourceCollector.js`: マルチソース収集
+- `src/signalDigest.js`: 重複排除 / スコアリング / クラスタ化
+- `src/scheduler.js`: 09:00 JST 自動実行
+- `src/storage.js`: 固定テーマと run 保存
+- `public/*`: Today’s Insights UI
+
+詳細は `MANUAL.md` を参照してください。
