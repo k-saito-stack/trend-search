@@ -3,77 +3,157 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Trend Atelier</title>
+    <title>Trend Search Briefing</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23090b10'/%3E%3Cpath d='M16 20h32v6H35v18h-6V26H16z' fill='%23ff6a3d'/%3E%3C/svg%3E"
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="bg-orb bg-orb-a"></div>
-    <div class="bg-orb bg-orb-b"></div>
+    <div class="ambient-glow" aria-hidden="true"></div>
 
-    <header class="topbar">
+    <header class="top-nav">
       <div>
-        <p class="kicker">X Trend Observatory</p>
-        <h1>Trend Atelier</h1>
+        <p class="brand-kicker">State Of Trend Work</p>
+        <h1 class="brand-title">Trend Search Briefing</h1>
       </div>
-      <div class="topbar-actions">
-        <span id="healthBadge" class="badge">Loading...</span>
-        <button id="runAllBtn" class="btn btn-accent">有効テーマを今すぐ収集</button>
+      <div class="top-nav-actions">
+        <span id="healthBadge" class="status-pill">Loading...</span>
+        <button id="settingsOpenBtn" class="btn btn-ghost" type="button">Workspace</button>
       </div>
     </header>
 
-    <div class="layout">
-      <aside class="panel">
-        <div class="panel-header">
-          <h2>Themes</h2>
+    <main class="main-frame">
+      <section class="hero-section reveal-on-scroll">
+        <p class="hero-eyebrow">2026 Trend Intelligence</p>
+        <h2 class="hero-title">
+          <span class="hero-line">State of Trend</span>
+          <span class="hero-line">Work Signals</span>
+        </h2>
+        <p class="hero-copy">
+          テーマごとの重要変化を、毎日の収集データからフラットに可視化。必要な情報だけを短時間で把握できる運用ダッシュボードです。
+        </p>
+        <div class="hero-controls">
+          <label class="picker-label" for="themePicker">
+            Theme
+            <select id="themePicker"></select>
+          </label>
+          <button id="runSelectedBtn" class="btn btn-primary" type="button">このテーマを収集</button>
+          <button id="runAllBtn" class="btn btn-secondary" type="button">有効テーマを収集</button>
         </div>
-        <div id="themeList" class="theme-list"></div>
+        <div class="hero-foot">
+          <span class="hero-foot-label">Daily operation view</span>
+          <span class="hero-foot-scroll">Updated on Japan time</span>
+        </div>
+      </section>
 
-        <form id="createThemeForm" class="theme-form">
-          <h3>新規テーマ</h3>
-          <label>
-            名前
-            <input name="name" placeholder="例: 現代新書" required />
-          </label>
-          <label>
-            クエリ
-            <input name="query" placeholder="例: 現代新書" required />
-          </label>
-          <label>
-            期間(日)
-            <input name="periodDays" type="number" min="1" max="30" value="2" required />
-          </label>
-          <button class="btn" type="submit">追加</button>
-        </form>
-      </aside>
+      <section class="motion-tape reveal-on-scroll" aria-hidden="true">
+        <div class="motion-tape-track">
+          <p id="heroTapeTextA">RUN QUERY • TREND SEARCH BRIEFING • STATE OF TREND WORK •</p>
+          <p id="heroTapeTextB">RUN QUERY • TREND SEARCH BRIEFING • STATE OF TREND WORK •</p>
+        </div>
+      </section>
 
-      <main class="panel panel-main">
-        <section id="themeDetail"></section>
-
-        <section>
-          <div class="section-title-row">
-            <h2>Trend Clusters</h2>
-            <span id="lastRunMeta" class="meta"></span>
+      <section class="overview-grid">
+        <article class="panel reveal-on-scroll">
+          <div class="panel-head">
+            <h3>Signals by Cluster</h3>
           </div>
           <div id="clusters" class="cluster-grid"></div>
-        </section>
+        </article>
 
-        <section>
-          <h2>Top Materials</h2>
+        <article class="panel reveal-on-scroll">
+          <div class="panel-head">
+            <h3>Source Highlights</h3>
+          </div>
           <div id="materials" class="materials-list"></div>
-        </section>
+        </article>
+      </section>
+    </main>
 
-        <section>
-          <h2>履歴</h2>
-          <div id="history" class="history-list"></div>
-        </section>
-      </main>
-    </div>
+    <div id="settingsBackdrop" class="settings-backdrop hidden"></div>
+    <aside id="settingsPanel" class="settings-panel hidden" aria-hidden="true">
+      <div class="settings-panel-head">
+        <h3>Workspace Settings</h3>
+        <button id="settingsCloseBtn" class="btn btn-ghost" type="button">Close</button>
+      </div>
+      <div class="settings-panel-body">
+        <article class="settings-card">
+          <div class="settings-card-head">
+            <h4>Current Snapshot</h4>
+            <span id="lastRunMeta" class="meta-chip">未実行</span>
+          </div>
+          <div class="settings-card-body">
+            <div id="overviewSummary" class="snapshot-strip-body"></div>
+          </div>
+        </article>
+
+        <article class="settings-card">
+          <div class="settings-card-head">
+            <h4>Theme Management</h4>
+          </div>
+          <div class="settings-card-body studio-grid">
+            <section>
+              <h5 class="subheading">Theme List</h5>
+              <div id="themeList" class="theme-list"></div>
+            </section>
+
+            <div class="studio-stack">
+              <form id="updateThemeForm" class="form-grid">
+                <h5 class="subheading">Selected Theme</h5>
+                <label>
+                  テーマ（名前=クエリ）
+                  <input id="editThemeTerm" name="themeTerm" required />
+                </label>
+                <label>
+                  期間(日)
+                  <input id="editPeriod" name="periodDays" type="number" min="1" max="30" required />
+                </label>
+                <label class="checkbox-label">
+                  <input id="editEnabled" name="enabled" type="checkbox" />
+                  毎朝7:00 JST の自動収集を有効
+                </label>
+                <div class="row-actions">
+                  <button class="btn btn-primary" type="submit">保存</button>
+                  <button id="deleteThemeBtn" class="btn btn-danger" type="button">削除</button>
+                </div>
+              </form>
+
+              <form id="createThemeForm" class="form-grid create-form">
+                <h5 class="subheading">Add New Theme</h5>
+                <label>
+                  テーマ（名前=クエリ）
+                  <input name="themeTerm" placeholder="例: 出版業界" required />
+                </label>
+                <label>
+                  期間(日)
+                  <input name="periodDays" type="number" min="1" max="30" value="2" required />
+                </label>
+                <div class="row-actions">
+                  <button class="btn btn-primary" type="submit">追加</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </article>
+
+        <article class="settings-card">
+          <div class="settings-card-head">
+            <h4>Run History</h4>
+          </div>
+          <div class="settings-card-body">
+            <div id="history" class="history-list"></div>
+          </div>
+        </article>
+      </div>
+    </aside>
 
     <div id="toast" class="toast" aria-live="polite"></div>
 

@@ -8,16 +8,36 @@ const state = {
 let twitterWidgetsPromise = null;
 let twitterWidgetsFailed = false;
 
-const themeListEl = document.getElementById('themeList');
-const themeDetailEl = document.getElementById('themeDetail');
+const healthBadgeEl = document.getElementById('healthBadge');
+const themePickerEl = document.getElementById('themePicker');
+const runSelectedBtn = document.getElementById('runSelectedBtn');
+const runAllBtn = document.getElementById('runAllBtn');
+const settingsOpenBtn = document.getElementById('settingsOpenBtn');
+const settingsCloseBtn = document.getElementById('settingsCloseBtn');
+const settingsPanelEl = document.getElementById('settingsPanel');
+const settingsBackdropEl = document.getElementById('settingsBackdrop');
+const revealEls = Array.from(document.querySelectorAll('.reveal-on-scroll'));
+const heroTapeTextAEl = document.getElementById('heroTapeTextA');
+const heroTapeTextBEl = document.getElementById('heroTapeTextB');
+
+const lastRunMetaEl = document.getElementById('lastRunMeta');
+const overviewSummaryEl = document.getElementById('overviewSummary');
 const clustersEl = document.getElementById('clusters');
 const materialsEl = document.getElementById('materials');
 const historyEl = document.getElementById('history');
-const healthBadgeEl = document.getElementById('healthBadge');
-const lastRunMetaEl = document.getElementById('lastRunMeta');
-const toastEl = document.getElementById('toast');
+
+const themeListEl = document.getElementById('themeList');
+const updateThemeForm = document.getElementById('updateThemeForm');
 const createThemeForm = document.getElementById('createThemeForm');
-const runAllBtn = document.getElementById('runAllBtn');
+const deleteThemeBtn = document.getElementById('deleteThemeBtn');
+
+const editThemeTermEl = document.getElementById('editThemeTerm');
+const editPeriodEl = document.getElementById('editPeriod');
+const editEnabledEl = document.getElementById('editEnabled');
+
+const toastEl = document.getElementById('toast');
+
+let revealObserver = null;
 
 function escapeHtml(text) {
   return String(text)
@@ -30,9 +50,77 @@ function escapeHtml(text) {
 
 function notify(message, isError = false) {
   toastEl.textContent = message;
-  toastEl.style.background = isError ? '#a32416' : '#163030';
+  toastEl.style.background = isError ? '#a32416' : '#151515';
   toastEl.classList.add('show');
   setTimeout(() => toastEl.classList.remove('show'), 2200);
+}
+
+function setTapeText(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return;
+  }
+
+  if (heroTapeTextAEl) {
+    heroTapeTextAEl.textContent = text;
+  }
+  if (heroTapeTextBEl) {
+    heroTapeTextBEl.textContent = text;
+  }
+}
+
+function initRevealAnimations() {
+  if (revealEls.length === 0) {
+    return;
+  }
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReducedMotion || !('IntersectionObserver' in window)) {
+    revealEls.forEach((el) => el.classList.add('visible'));
+    return;
+  }
+
+  revealObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) {
+          return;
+        }
+        entry.target.classList.add('visible');
+        revealObserver.unobserve(entry.target);
+      });
+    },
+    {
+      threshold: 0.18,
+    },
+  );
+
+  revealEls.forEach((el) => revealObserver.observe(el));
+}
+
+function initAmbientMotion() {
+  const target = document.body;
+
+  window.addEventListener('pointermove', (event) => {
+    const x = (event.clientX / window.innerWidth) * 100;
+    const y = (event.clientY / window.innerHeight) * 100;
+    target.style.setProperty('--cursor-x', x.toFixed(2));
+    target.style.setProperty('--cursor-y', y.toFixed(2));
+  });
+}
+
+function openSettingsPanel() {
+  settingsPanelEl.classList.remove('hidden');
+  settingsBackdropEl.classList.remove('hidden');
+  settingsPanelEl.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('settings-open');
+}
+
+function closeSettingsPanel() {
+  settingsPanelEl.classList.add('hidden');
+  settingsBackdropEl.classList.add('hidden');
+  settingsPanelEl.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('settings-open');
 }
 
 function extractStatusId(rawUrl) {
@@ -146,129 +234,94 @@ function formatDate(isoDate) {
   });
 }
 
-function renderThemeList() {
-  const themes = getThemeList();
+function setEditorDisabled(disabled) {
+  editThemeTermEl.disabled = disabled;
+  editPeriodEl.disabled = disabled;
+  editEnabledEl.disabled = disabled;
+  deleteThemeBtn.disabled = disabled;
+  updateThemeForm.querySelector('button[type="submit"]').disabled = disabled;
+}
 
-  if (themes.length === 0) {
-    themeListEl.innerHTML = '<div class="empty">テーマがまだありません</div>';
+function renderHealth() {
+  if (!state.health) {
+    healthBadgeEl.textContent = 'Unknown';
     return;
   }
 
-  themeListEl.innerHTML = themes
-    .map((theme) => {
-      const latestRun = getLatestRun(theme.id);
-      const active = theme.id === state.selectedThemeId ? 'active' : '';
-      const icon = theme.enabled ? '●' : '○';
-      const runTime = latestRun ? formatDate(latestRun.createdAt) : '未収集';
-
-      return `
-        <button class="theme-item ${active}" data-theme-id="${escapeHtml(theme.id)}">
-          <div class="theme-item-title">${escapeHtml(icon)} ${escapeHtml(theme.name)}</div>
-          <div class="theme-item-meta">${escapeHtml(theme.query)}</div>
-          <div class="theme-item-meta">${escapeHtml(theme.periodDays)}日 / ${escapeHtml(runTime)}</div>
-        </button>
-      `;
-    })
-    .join('');
-
-  for (const button of themeListEl.querySelectorAll('[data-theme-id]')) {
-    button.addEventListener('click', async () => {
-      state.selectedThemeId = button.dataset.themeId;
-      render();
-      await loadRuns();
-      render();
-    });
+  if (state.health.hasApiKey) {
+    healthBadgeEl.textContent = `xAI key: OK / ${state.health.model}`;
+    healthBadgeEl.style.borderColor = '#91d8c2';
+  } else {
+    healthBadgeEl.textContent = 'xAI key: 未設定';
+    healthBadgeEl.style.borderColor = '#f4c3bc';
   }
 }
 
-function renderThemeDetail() {
-  const theme = getSelectedTheme();
+function renderThemePicker() {
+  const themes = getThemeList();
 
-  if (!theme) {
-    themeDetailEl.innerHTML = '<div class="empty">左からテーマを選択してください</div>';
+  if (themes.length === 0) {
+    themePickerEl.innerHTML = '<option value="">テーマがありません</option>';
+    themePickerEl.disabled = true;
+    runSelectedBtn.disabled = true;
     return;
   }
 
-  themeDetailEl.innerHTML = `
-    <div class="detail-card">
-      <h2>Theme Settings</h2>
-      <div class="detail-grid">
-        <label>
-          名前
-          <input id="editName" value="${escapeHtml(theme.name)}" />
-        </label>
-        <label>
-          クエリ
-          <input id="editQuery" value="${escapeHtml(theme.query)}" />
-        </label>
-        <label>
-          期間(日)
-          <input id="editPeriod" type="number" min="1" max="30" value="${escapeHtml(theme.periodDays)}" />
-        </label>
+  themePickerEl.disabled = false;
+  runSelectedBtn.disabled = false;
+
+  themePickerEl.innerHTML = themes
+    .map((theme) => `<option value="${escapeHtml(theme.id)}">${escapeHtml(theme.query || theme.name)}</option>`)
+    .join('');
+
+  const selectedExists = themes.some((theme) => theme.id === state.selectedThemeId);
+  if (!selectedExists) {
+    state.selectedThemeId = themes[0].id;
+  }
+
+  themePickerEl.value = state.selectedThemeId;
+}
+
+function renderOverviewSummary() {
+  const theme = getSelectedTheme();
+  const run = theme ? getLatestRun(theme.id) : null;
+
+  if (!theme) {
+    overviewSummaryEl.innerHTML = '<div class="empty">まずテーマを追加してください。</div>';
+    lastRunMetaEl.textContent = '未実行';
+    setTapeText('STATE OF TREND WORK • TREND SEARCH BRIEFING •');
+    return;
+  }
+
+  lastRunMetaEl.textContent = run ? `${formatDate(run.createdAt)} / ${run.periodLabel}` : '未実行';
+
+  const runQuery = run?.queryWithSince || `${theme.query} since:-`;
+  setTapeText(`${runQuery} • ${run?.periodLabel || `直近${theme.periodDays}日`} • TREND SEARCH BRIEFING •`);
+
+  overviewSummaryEl.innerHTML = `
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="summary-label">Theme</div>
+        <div class="summary-value">${escapeHtml(theme.query || theme.name)}</div>
       </div>
-      <label class="checkbox-row">
-        <input id="editEnabled" type="checkbox" ${theme.enabled ? 'checked' : ''} />
-        毎朝7:00 JSTの自動収集を有効
-      </label>
-      <div class="detail-actions">
-        <button id="saveThemeBtn" class="btn">保存</button>
-        <button id="runThemeBtn" class="btn btn-accent">このテーマを今すぐ収集</button>
-        <button id="deleteThemeBtn" class="btn btn-danger">削除</button>
+      <div class="summary-item">
+        <div class="summary-label">Window</div>
+        <div class="summary-value">直近${escapeHtml(theme.periodDays)}日</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Auto Run</div>
+        <div class="summary-value">${theme.enabled ? 'Enabled' : 'Disabled'}</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Parse</div>
+        <div class="summary-value">${escapeHtml(run?.parseStatus || '-')}</div>
       </div>
     </div>
+    <div class="quiet-query" title="${escapeHtml(runQuery)}">
+      <span class="quiet-query-label">run query</span>
+      <span class="quiet-query-text mono">${escapeHtml(runQuery)}</span>
+    </div>
   `;
-
-  document.getElementById('saveThemeBtn').addEventListener('click', async () => {
-    try {
-      const payload = {
-        name: document.getElementById('editName').value,
-        query: document.getElementById('editQuery').value,
-        periodDays: Number(document.getElementById('editPeriod').value),
-        enabled: document.getElementById('editEnabled').checked,
-      };
-      await api(`/api/themes/${encodeURIComponent(theme.id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      });
-      notify('テーマを更新しました');
-      await reloadAll();
-    } catch (error) {
-      notify(error.message, true);
-    }
-  });
-
-  document.getElementById('runThemeBtn').addEventListener('click', async () => {
-    try {
-      notify('収集中...');
-      await api('/api/run', {
-        method: 'POST',
-        body: JSON.stringify({ themeId: theme.id }),
-      });
-      notify('収集が完了しました');
-      await reloadAll();
-    } catch (error) {
-      notify(error.message, true);
-    }
-  });
-
-  document.getElementById('deleteThemeBtn').addEventListener('click', async () => {
-    if (!window.confirm(`「${theme.name}」を削除しますか？`)) {
-      return;
-    }
-    try {
-      await api(`/api/themes/${encodeURIComponent(theme.id)}`, {
-        method: 'DELETE',
-      });
-      notify('テーマを削除しました');
-
-      const remaining = getThemeList().filter((item) => item.id !== theme.id);
-      state.selectedThemeId = remaining[0]?.id || null;
-
-      await reloadAll();
-    } catch (error) {
-      notify(error.message, true);
-    }
-  });
 }
 
 function renderClustersAndMaterials() {
@@ -278,11 +331,8 @@ function renderClustersAndMaterials() {
   if (!run) {
     clustersEl.innerHTML = '<div class="empty">まだ収集結果がありません</div>';
     materialsEl.innerHTML = '<div class="empty">まだ収集結果がありません</div>';
-    lastRunMetaEl.textContent = '未実行';
     return;
   }
-
-  lastRunMetaEl.textContent = `${formatDate(run.createdAt)} / ${run.periodLabel}`;
 
   const clusters = run.payload?.clusters || [];
   const materials = run.payload?.materials || [];
@@ -314,7 +364,7 @@ function renderClustersAndMaterials() {
         return `
           <article class="cluster-card">
             <div class="cluster-title">
-              <h3>${escapeHtml(cluster.name || '無題')}</h3>
+              <h4>${escapeHtml(cluster.name || '無題')}</h4>
             </div>
             <div class="tag-list">${tags || '<span class="meta">キーフレーズなし</span>'}</div>
             ${posts || '<div class="meta">ポストなし</div>'}
@@ -351,6 +401,51 @@ function renderClustersAndMaterials() {
   }
 }
 
+function renderThemeList() {
+  const themes = getThemeList();
+
+  if (themes.length === 0) {
+    themeListEl.innerHTML = '<div class="empty">テーマがまだありません</div>';
+    return;
+  }
+
+  themeListEl.innerHTML = themes
+    .map((theme) => {
+      const latestRun = getLatestRun(theme.id);
+      const active = theme.id === state.selectedThemeId ? 'active' : '';
+      const statusBadge = theme.enabled
+        ? '<span class="badge-ok">enabled</span>'
+        : '<span class="badge-off">disabled</span>';
+
+      return `
+        <article class="theme-row ${active}" data-theme-id="${escapeHtml(theme.id)}">
+          <div class="theme-row-head">
+            <div class="theme-name">${escapeHtml(theme.query || theme.name)}</div>
+            ${statusBadge}
+          </div>
+          <div class="theme-meta">期間: ${escapeHtml(theme.periodDays)}日 / 最終: ${escapeHtml(latestRun ? formatDate(latestRun.createdAt) : '未収集')}</div>
+        </article>
+      `;
+    })
+    .join('');
+}
+
+function renderThemeEditor() {
+  const theme = getSelectedTheme();
+
+  if (!theme) {
+    updateThemeForm.reset();
+    setEditorDisabled(true);
+    return;
+  }
+
+  setEditorDisabled(false);
+
+  editThemeTermEl.value = theme.query || theme.name || '';
+  editPeriodEl.value = String(theme.periodDays);
+  editEnabledEl.checked = Boolean(theme.enabled);
+}
+
 function renderHistory() {
   if (!state.selectedThemeId) {
     historyEl.innerHTML = '<div class="empty">テーマ未選択</div>';
@@ -368,40 +463,29 @@ function renderHistory() {
       const firstLink = first?.url
         ? `<a href="${escapeHtml(first.url)}" target="_blank" rel="noreferrer">${escapeHtml(first.url)}</a>`
         : '<span class="meta">リンクなし</span>';
+      const runQuery = run.queryWithSince || run.query || '-';
+      const since = run.sinceDate || '-';
 
       return `
-        <div class="history-item">
-          <div>${escapeHtml(formatDate(run.createdAt))} / ${escapeHtml(run.periodLabel || '-')}</div>
-          <div class="meta">${escapeHtml(run.queryWithSince || run.query || '')}</div>
-          <div class="meta">parse: ${escapeHtml(run.parseStatus || 'unknown')}</div>
+        <article class="history-item">
+          <div><strong>${escapeHtml(formatDate(run.createdAt))}</strong> / ${escapeHtml(run.periodLabel || '-')}</div>
+          <div class="meta mono" title="${escapeHtml(runQuery)}">since: ${escapeHtml(since)}</div>
+          <div>parse: ${escapeHtml(run.parseStatus || 'unknown')}</div>
           ${firstLink}
-        </div>
+        </article>
       `;
     })
     .join('');
 }
 
-function renderHealth() {
-  if (!state.health) {
-    healthBadgeEl.textContent = 'Unknown';
-    return;
-  }
-
-  if (state.health.hasApiKey) {
-    healthBadgeEl.textContent = `xAI key: OK / ${state.health.model}`;
-    healthBadgeEl.style.borderColor = '#89d5d5';
-  } else {
-    healthBadgeEl.textContent = 'xAI key: 未設定';
-    healthBadgeEl.style.borderColor = '#ffc2b7';
-  }
-}
-
 function render() {
-  renderThemeList();
-  renderThemeDetail();
-  renderClustersAndMaterials();
-  renderHistory();
   renderHealth();
+  renderThemePicker();
+  renderOverviewSummary();
+  renderClustersAndMaterials();
+  renderThemeList();
+  renderThemeEditor();
+  renderHistory();
 }
 
 async function loadHealth() {
@@ -428,23 +512,134 @@ async function loadRuns() {
 }
 
 async function reloadAll() {
-  await loadHealth();
-  await loadSnapshot();
+  await Promise.all([loadHealth(), loadSnapshot()]);
   await loadRuns();
   render();
 }
+
+async function withButtonBusy(button, busyText, fn) {
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = busyText;
+  try {
+    await fn();
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
+}
+
+async function selectTheme(themeId) {
+  state.selectedThemeId = themeId;
+  await loadRuns();
+  render();
+}
+
+themePickerEl.addEventListener('change', () => {
+  void selectTheme(themePickerEl.value);
+});
+
+settingsOpenBtn.addEventListener('click', () => {
+  openSettingsPanel();
+});
+
+settingsCloseBtn.addEventListener('click', () => {
+  closeSettingsPanel();
+});
+
+settingsBackdropEl.addEventListener('click', () => {
+  closeSettingsPanel();
+});
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !settingsPanelEl.classList.contains('hidden')) {
+    closeSettingsPanel();
+  }
+});
+
+themeListEl.addEventListener('click', (event) => {
+  const row = event.target.closest('[data-theme-id]');
+  if (!row) return;
+  void selectTheme(row.dataset.themeId);
+});
+
+runSelectedBtn.addEventListener('click', async () => {
+  if (!state.selectedThemeId) {
+    notify('テーマを選択してください', true);
+    return;
+  }
+
+  await withButtonBusy(runSelectedBtn, '収集中...', async () => {
+    try {
+      await api('/api/run', {
+        method: 'POST',
+        body: JSON.stringify({ themeId: state.selectedThemeId }),
+      });
+      notify('収集が完了しました');
+      await reloadAll();
+    } catch (error) {
+      notify(error.message, true);
+    }
+  });
+});
+
+runAllBtn.addEventListener('click', async () => {
+  await withButtonBusy(runAllBtn, '収集中...', async () => {
+    try {
+      await api('/api/run', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      notify('全テーマの収集が完了しました');
+      await reloadAll();
+    } catch (error) {
+      notify(error.message, true);
+    }
+  });
+});
+
+updateThemeForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const theme = getSelectedTheme();
+  if (!theme) {
+    notify('更新対象のテーマがありません', true);
+    return;
+  }
+
+  const term = editThemeTermEl.value.trim();
+  const payload = {
+    name: term,
+    query: term,
+    periodDays: Number(editPeriodEl.value),
+    enabled: editEnabledEl.checked,
+  };
+
+  try {
+    await api(`/api/themes/${encodeURIComponent(theme.id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+
+    notify('テーマを更新しました');
+    await reloadAll();
+  } catch (error) {
+    notify(error.message, true);
+  }
+});
 
 createThemeForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
   const form = new FormData(createThemeForm);
+  const term = String(form.get('themeTerm') || '').trim();
 
   try {
-    await api('/api/themes', {
+    const result = await api('/api/themes', {
       method: 'POST',
       body: JSON.stringify({
-        name: form.get('name'),
-        query: form.get('query'),
+        name: term,
+        query: term,
         periodDays: Number(form.get('periodDays') || 2),
       }),
     });
@@ -452,6 +647,7 @@ createThemeForm.addEventListener('submit', async (event) => {
     createThemeForm.reset();
     createThemeForm.elements.periodDays.value = 2;
 
+    state.selectedThemeId = result.theme?.id || state.selectedThemeId;
     notify('テーマを追加しました');
     await reloadAll();
   } catch (error) {
@@ -459,14 +655,22 @@ createThemeForm.addEventListener('submit', async (event) => {
   }
 });
 
-runAllBtn.addEventListener('click', async () => {
+deleteThemeBtn.addEventListener('click', async () => {
+  const theme = getSelectedTheme();
+  if (!theme) {
+    notify('削除対象のテーマがありません', true);
+    return;
+  }
+
+  if (!window.confirm(`「${theme.query || theme.name}」を削除しますか？`)) {
+    return;
+  }
+
   try {
-    notify('全テーマを収集中...');
-    await api('/api/run', {
-      method: 'POST',
-      body: JSON.stringify({}),
+    await api(`/api/themes/${encodeURIComponent(theme.id)}`, {
+      method: 'DELETE',
     });
-    notify('収集が完了しました');
+    notify('テーマを削除しました');
     await reloadAll();
   } catch (error) {
     notify(error.message, true);
@@ -475,6 +679,8 @@ runAllBtn.addEventListener('click', async () => {
 
 (async function init() {
   try {
+    initRevealAnimations();
+    initAmbientMotion();
     await reloadAll();
   } catch (error) {
     notify(error.message, true);
