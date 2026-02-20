@@ -289,14 +289,14 @@ function renderOverviewSummary() {
   if (!theme) {
     overviewSummaryEl.innerHTML = '<div class="empty">まずテーマを追加してください。</div>';
     lastRunMetaEl.textContent = '未実行';
-    setTapeText('STATE OF TREND WORK • TREND SEARCH BRIEFING •');
+    setTapeText('STATE OF TREND WORK • TRACKING SIGNALS • DAILY BRIEFING •');
     return;
   }
 
   lastRunMetaEl.textContent = run ? `${formatDate(run.createdAt)} / ${run.periodLabel}` : '未実行';
 
   const runQuery = run?.queryWithSince || `${theme.query} since:-`;
-  setTapeText(`${runQuery} • ${run?.periodLabel || `直近${theme.periodDays}日`} • TREND SEARCH BRIEFING •`);
+  setTapeText(`${runQuery} • ${run?.periodLabel || `直近${theme.periodDays}日`} • DAILY BRIEFING •`);
 
   overviewSummaryEl.innerHTML = `
     <div class="summary-grid">
