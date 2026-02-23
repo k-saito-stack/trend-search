@@ -223,6 +223,16 @@ const SOURCE_CATALOG = [
     url: 'https://www.tohan.jp/bestsellers/',
   },
   {
+    id: 'yahoo_publishing_follow',
+    kind: 'yahoo_follow',
+    name: 'Yahoo! フォロー / 出版業界',
+    category: 'industry_news',
+    costTier: 'free',
+    priority: 4,
+    itemLimit: 12,
+    url: 'https://follow.yahoo.co.jp/themes/09a1c20bfcfe9d947584/',
+  },
+  {
     id: 'hatenabookmark_books',
     kind: 'rss_direct',
     name: 'はてブ / 本',

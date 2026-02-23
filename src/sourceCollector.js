@@ -269,6 +269,43 @@ function parseYurindoRanking(html, limit) {
   }));
 }
 
+function parseYahooFollow(html, limit) {
+  const results = [];
+  const seen = new Set();
+  // Yahoo Follow (Next.js SSR): <a href="https://news.yahoo.co.jp/articles/[hex40]">...<h2...>TITLE</h2>...</a>
+  const pattern = /<a[^>]+href="(https:\/\/news\.yahoo\.co\.jp\/articles\/[a-f0-9]{40})"[^>]*>[\s\S]*?<h2[^>]*>([\s\S]*?)<\/h2>/gi;
+  let hit;
+  while ((hit = pattern.exec(html)) && results.length < limit) {
+    const url = hit[1];
+    const title = stripTags(hit[2]).trim();
+    if (!title || title.length < 5) continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    results.push({ url, title });
+  }
+  return results.slice(0, limit);
+}
+
+async function collectYahooFollow(source, context) {
+  const html = await fetchText(source.url, {
+    timeoutMs: context.timeoutMs,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120',
+      'Accept-Language': 'ja,en-US;q=0.9',
+    },
+  });
+  const entries = parseYahooFollow(html, Number(source.itemLimit || 10));
+  return entries.map((entry) =>
+    makeSignal(source, {
+      title: entry.title,
+      summary: entry.title,
+      url: entry.url,
+      metricLabel: 'mentions',
+      metricValue: 1,
+    }),
+  );
+}
+
 async function collectGoogleNews(source, context) {
   const queryBase = fillTemplate(source.queryTemplate, context.theme, context.sinceDate);
   const query = `${queryBase} when:${Math.min(30, Math.max(1, context.theme.periodDays || 2))}d`;
@@ -545,6 +582,11 @@ async function collectSingleSource(source, context) {
       };
     }
 
+    if (source.kind === 'yahoo_follow') {
+      const items = await collectYahooFollow(source, context);
+      return { source, status: 'ok', items, meta: {}, durationMs: Date.now() - startedAt };
+    }
+
     return {
       source,
       status: 'skipped',
@@ -591,8 +633,11 @@ async function mapWithConcurrency(items, concurrency, mapper) {
 
 function dedupeSignals(items) {
   const map = new Map();
+  // ランキングアイテムは書店ごとの独立したリストを保持するため重複排除から除外
+  const rankingItems = items.filter((item) => item.sourceCategory === 'ranking');
+  const otherItems = items.filter((item) => item.sourceCategory !== 'ranking');
 
-  for (const item of items) {
+  for (const item of otherItems) {
     const keyBase = item.url ? `u:${item.url}` : `t:${String(item.title || '').toLowerCase()}`;
     const key = keyBase.trim();
     if (!key) continue;
@@ -610,7 +655,7 @@ function dedupeSignals(items) {
     }
   }
 
-  return Array.from(map.values());
+  return [...Array.from(map.values()), ...rankingItems];
 }
 
 async function collectThemeSignals(theme, options = {}) {

@@ -1,4 +1,4 @@
-const { appendRun, readThemes } = require('./storage');
+const { appendRun, readThemes, getRunsByTheme } = require('./storage');
 const { createId, getJstParts, getSinceDate, getPeriodLabel } = require('./utils');
 const { collectThemeSignals } = require('./sourceCollector');
 const { buildTrendPayload } = require('./signalDigest');
@@ -21,6 +21,25 @@ async function runTheme(theme, options = {}) {
     model,
   });
   const digest = buildTrendPayload(theme, collection);
+
+  // X投稿フォールバック: 今回0件の場合、直近の成功したrunからキャッシュを補完
+  const currentXCount = (digest.payload?.materials || []).filter((m) => m.sourceKind === 'x_grok').length;
+  if (currentXCount === 0) {
+    const recentRuns = getRunsByTheme(theme.id, 10);
+    for (const pastRun of recentRuns) {
+      const cachedX = (pastRun.payload?.materials || [])
+        .filter((m) => m.sourceKind === 'x_grok')
+        .sort((a, b) => Number(b.metricValue || 0) - Number(a.metricValue || 0))
+        .slice(0, 14);
+      if (cachedX.length > 0) {
+        const nonRanking = (digest.payload.materials || []).filter((m) => m.sourceCategory !== 'ranking');
+        const ranking = (digest.payload.materials || []).filter((m) => m.sourceCategory === 'ranking');
+        digest.payload.materials = [...nonRanking, ...cachedX, ...ranking];
+        break;
+      }
+    }
+  }
+
   const now = new Date();
   const jst = getJstParts(now);
 
