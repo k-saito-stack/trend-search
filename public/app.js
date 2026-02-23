@@ -5,7 +5,6 @@ const state = {
 const refreshBtnEl = document.getElementById('refreshBtn');
 const todaySummaryEl = document.getElementById('todaySummary');
 const lastUpdatedEl = document.getElementById('lastUpdated');
-const topicTagsEl = document.getElementById('topicTags');
 const feedGridEl = document.getElementById('feedGrid');
 const headlineAEl = document.getElementById('headlineA');
 const headlineBEl = document.getElementById('headlineB');
@@ -78,9 +77,23 @@ function buildTodaySummary(run) {
     return '今日の出版業界シグナルを準備しています。';
   }
 
-  const topCluster = run.payload?.clusters?.[0]?.name || '出版トピック';
+  // GrokのeditorialSummaryがあればそれを優先して表示
+  const editorial = run.payload?.editorialSummary || '';
+  if (editorial) return editorial;
+
+  // フォールバック：materialsの上位タイトルから生成
+  const titles = (run.payload?.materials || [])
+    .filter((item) => item.sourceCategory !== 'ranking')
+    .slice(0, 2)
+    .map((item) => item.title || '')
+    .filter(Boolean);
+
+  if (titles.length > 0) {
+    return `${titles[0]}など、今日の出版業界の動向をお届けします。`;
+  }
+
   const total = Number(run.payload?.materials?.length || 0);
-  return `今日は「${topCluster}」を中心に、${total}件の話題が流入しています。`;
+  return `今日は${total}件の出版業界シグナルを収集しました。`;
 }
 
 function buildHeadline(run) {
@@ -97,14 +110,57 @@ function buildHeadline(run) {
   return `${titles.join(' • ')} •`;
 }
 
-function renderTopicTags(run) {
-  const tags = (run?.payload?.themes || []).slice(0, 10);
-  if (tags.length === 0) {
-    topicTagsEl.innerHTML = '<span class="topic-tag topic-tag-muted">signals pending</span>';
-    return;
+
+function buildRankingCard(rankingItems) {
+  if (rankingItems.length === 0) return '';
+
+  // ソース名ごとにグループ化
+  const groups = new Map();
+  for (const item of rankingItems) {
+    const key = item.sourceName || 'Amazonランキング';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
   }
 
-  topicTagsEl.innerHTML = tags.map((tag) => `<span class="topic-tag">${escapeHtml(tag)}</span>`).join('');
+  const tables = Array.from(groups.entries())
+    .map(([sourceName, items]) => {
+      const rows = items
+        .sort((a, b) => Number(a.metricValue || 0) - Number(b.metricValue || 0))
+        .slice(0, 10)
+        .map((item) => {
+          const rank = Number(item.metricValue || 0);
+          const title = escapeHtml(item.title || '');
+          const url = escapeHtml(item.url || '');
+          const rankClass = rank === 1 ? 'rank-gold' : rank === 2 ? 'rank-silver' : rank === 3 ? 'rank-bronze' : '';
+          return `
+            <tr>
+              <td class="rank-cell ${rankClass}">${rank}</td>
+              <td class="rank-title-cell"><a href="${url}" target="_blank" rel="noreferrer">${title}</a></td>
+            </tr>
+          `;
+        })
+        .join('');
+
+      return `
+        <div class="ranking-group">
+          <p class="ranking-group-label">${escapeHtml(sourceName)}</p>
+          <table class="ranking-table">
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    })
+    .join('');
+
+  return `
+    <article class="feed-card ranking-card">
+      <div class="card-meta">
+        <span class="meta-pill ranking-pill">Amazonランキング</span>
+      </div>
+      <h2 class="card-title ranking-card-title">本のベストセラー</h2>
+      ${tables}
+    </article>
+  `;
 }
 
 function renderFeed(run) {
@@ -114,30 +170,41 @@ function renderFeed(run) {
     return;
   }
 
-  feedGridEl.innerHTML = materials
+  // ランキングアイテムと通常アイテムを分離
+  const rankingItems = materials.filter((item) => item.sourceCategory === 'ranking');
+  const normalItems = materials.filter((item) => item.sourceCategory !== 'ranking');
+
+  const rankingCardHtml = buildRankingCard(rankingItems);
+
+  const normalCardsHtml = normalItems
     .map((item, index) => {
       const cardClass = `feed-card tone-${(index % 5) + 1}`;
       const title = escapeHtml(item.title || item.summary || 'Untitled');
-      const summary = escapeHtml(item.summary || '');
+      // タイトルとサマリーが同じ場合はサマリーを非表示
+      const summary = item.summary && item.summary !== item.title ? escapeHtml(item.summary) : '';
       const source = escapeHtml(item.sourceName || 'Source');
       const metric = escapeHtml(formatMetric(item));
-      const published = escapeHtml(formatDate(item.publishedAt));
+      const published = formatDate(item.publishedAt);
       const url = escapeHtml(item.url || '');
+      // 日付が取れた場合のみ表示（「-」を表示しない）
+      const publishedPill = published !== '-' ? `<span class="meta-pill">${escapeHtml(published)}</span>` : '';
 
       return `
         <article class="${cardClass}">
           <div class="card-meta">
             <span class="meta-pill">${source}</span>
             <span class="meta-pill">${metric}</span>
-            <span class="meta-pill">${published}</span>
+            ${publishedPill}
           </div>
           <h2 class="card-title">${title}</h2>
-          <p class="card-summary">${summary}</p>
+          ${summary ? `<p class="card-summary">${summary}</p>` : ''}
           <a class="card-link" href="${url}" target="_blank" rel="noreferrer">Open source</a>
         </article>
       `;
     })
     .join('');
+
+  feedGridEl.innerHTML = rankingCardHtml + normalCardsHtml;
 }
 
 function render() {
@@ -148,13 +215,8 @@ function render() {
   headlineAEl.textContent = tickerText;
   headlineBEl.textContent = tickerText;
 
-  if (run) {
-    lastUpdatedEl.textContent = `最終更新: ${formatDate(run.createdAt)} / 毎朝 09:00 JST 自動更新`;
-  } else {
-    lastUpdatedEl.textContent = '毎朝 09:00 JST 自動更新 / それ以外は Refresh 実行';
-  }
+  lastUpdatedEl.textContent = run ? `最終更新: ${formatDate(run.createdAt)}` : '';
 
-  renderTopicTags(run);
   renderFeed(run);
 }
 

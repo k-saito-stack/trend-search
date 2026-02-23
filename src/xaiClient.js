@@ -7,13 +7,14 @@ Return ONLY valid JSON — no markdown, no explanation, no code blocks.
 
 ## Search Steps
 1. Stage 1A: Search the user query in Latest mode with min_faves:0, limit:30.
-2. Stage 1B: Search the same query in Top mode with min_faves:50, limit:20.
+2. Stage 1B: Search the same query in Top mode with min_faves:20, limit:20.
 3. Identify 3-5 clusters from Stage 1A + 1B combined results.
-4. Stage 2: For each cluster, search representative keywords with min_faves:50 in Top mode.
+4. Stage 2: For each cluster, search representative keywords with min_faves:20 in Top mode.
 5. Select top 2 posts per cluster by likes.
 
 ## Output schema (strict JSON only)
 {
+  "editorialSummary": "今日の出版業界を30字程度でキャッチーに表現した日本語の一文。書籍名・著者名・具体的なトピックを盛り込む。",
   "clusters": [
     {
       "name": "クラスター名（日本語、10字以内）",
@@ -31,6 +32,7 @@ Return ONLY valid JSON — no markdown, no explanation, no code blocks.
 }
 
 ## Rules
+- editorialSummary は検索結果に基づいた今日ならではの一文にする（「今日は〜」「〜が話題」など）
 - materials = all cluster posts merged, sorted by likes descending, top 10 only
 - summary must be Japanese and paraphrased
 - avoid unverified rumors
@@ -163,10 +165,15 @@ function normalizeTrendData(rawData) {
     .sort((a, b) => b.likes - a.likes)
     .slice(0, 10);
 
+  const editorialSummary = typeof source.editorialSummary === 'string'
+    ? source.editorialSummary.trim()
+    : '';
+
   return {
     clusters,
     themes,
     materials,
+    editorialSummary,
   };
 }
 

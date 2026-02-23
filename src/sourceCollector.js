@@ -123,13 +123,19 @@ function parseAmazonRanking(html, source, limit) {
   while ((hit = pattern.exec(html)) && results.length < limit * 3) {
     const url = toAbsoluteUrl(source.url, hit[1]);
     const body = hit[2];
-    const bodyText = stripTags(body);
+    // 複数スペースを1つに正規化してから使う（価格フィルタを確実にするため）
+    const bodyText = stripTags(body).replace(/\s+/g, ' ').trim();
     const altMatch = body.match(/alt="([^"]+)"/i);
-    const altText = altMatch ? stripTags(altMatch[1]) : '';
+    const altText = altMatch ? stripTags(altMatch[1]).replace(/\s+/g, ' ').trim() : '';
     const title = truncate(bodyText.length >= 6 ? bodyText : altText, 120);
 
     if (!title) continue;
     if (/Amazon\.co\.jp|カート|ほしい物リスト|ポイント/i.test(title)) continue;
+    // 非書籍アイテム・クレジットカード等を除外
+    if (/マスターカード|クレジットカード|ギフト券|Unlimited|プライム会員|Echo|Kindle端末|Fire\s*(?:TV|タブレット)|Alexa/i.test(title)) continue;
+    // 価格のみのテキストを除外（¥1,980 や ¥ 1,980 など）
+    if (/^[\s¥￥\d,，.]+円?$/.test(title)) continue;
+    if (title.length < 5) continue;
 
     const key = `${url}__${title}`.toLowerCase();
     if (seen.has(key)) continue;
@@ -215,15 +221,18 @@ async function collectXGrok(source, context) {
   const items = (parsed.data.materials || [])
     .filter((post) => post.url)
     .slice(0, Number(source.itemLimit || 14))
-    .map((post) =>
-      makeSignal(source, {
-        title: post.summary || 'X上の投稿',
-        summary: post.summary || '',
+    .map((post) => {
+      const fullText = post.summary || '';
+      // タイトルは最初の42文字、サマリーは全文（同じ文章の繰り返しを防ぐ）
+      const shortTitle = fullText.length > 42 ? `${fullText.slice(0, 42)}…` : fullText || 'X上の投稿';
+      return makeSignal(source, {
+        title: shortTitle,
+        summary: fullText,
         url: post.url,
         metricLabel: 'likes',
         metricValue: Number(post.likes || 0),
-      }),
-    );
+      });
+    });
 
   return {
     status: 'ok',
@@ -233,6 +242,7 @@ async function collectXGrok(source, context) {
       parseStatus: parsed.ok ? 'ok' : 'fallback_text',
       clusters: parsed.data.clusters || [],
       themes: parsed.data.themes || [],
+      editorialSummary: parsed.data.editorialSummary || '',
       rawText: parsed.rawText || '',
     },
   };

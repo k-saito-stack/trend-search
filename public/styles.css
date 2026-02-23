@@ -67,10 +67,11 @@ body {
 
 .hero-summary {
   margin: 0;
-  font-family: 'Fraunces', serif;
-  font-size: clamp(1.9rem, 4.9vw, 3.8rem);
-  line-height: 1.03;
-  letter-spacing: -0.02em;
+  font-family: 'Outfit', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif;
+  font-size: clamp(1.7rem, 4.2vw, 3.2rem);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
   max-width: 980px;
 }
 
@@ -252,6 +253,88 @@ body {
 .empty-card {
   text-align: center;
   color: var(--ink-soft);
+}
+
+/* ランキングカード */
+.ranking-card {
+  background: linear-gradient(160deg, #fff8e8 0%, #fffdf8 74%);
+  border-color: #e8d49a;
+}
+
+.ranking-card-title {
+  margin-bottom: 14px;
+}
+
+.ranking-pill {
+  background: rgba(245, 191, 69, 0.22) !important;
+  border-color: rgba(200, 150, 40, 0.35) !important;
+  color: #7e5210 !important;
+}
+
+.ranking-group {
+  margin-bottom: 16px;
+}
+
+.ranking-group:last-child {
+  margin-bottom: 0;
+}
+
+.ranking-group-label {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-soft);
+}
+
+.ranking-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ranking-table tbody tr {
+  border-bottom: 1px solid rgba(219, 205, 183, 0.5);
+}
+
+.ranking-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.ranking-table tbody tr:hover {
+  background: rgba(245, 191, 69, 0.08);
+}
+
+.rank-cell {
+  width: 36px;
+  padding: 7px 6px 7px 2px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-align: center;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.rank-gold   { color: #b8860b; }
+.rank-silver { color: #707070; }
+.rank-bronze { color: #a0522d; }
+
+.rank-title-cell {
+  padding: 7px 2px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  vertical-align: top;
+}
+
+.rank-title-cell a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.rank-title-cell a:hover {
+  color: #1a6d85;
+  text-decoration: underline;
 }
 
 .toast {

@@ -246,12 +246,14 @@ function buildTrendPayload(theme, collection) {
     `${theme.query || theme.name} source-window:${collection.sinceDate}..today`;
 
   const rawText = collection.xMeta?.rawText || '';
+  const editorialSummary = collection.xMeta?.editorialSummary || '';
 
   return {
     parseStatus,
     queryWithSince,
     rawText,
     payload: {
+      editorialSummary,
       clusters,
       themes,
       materials,

@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/styles.css" />
@@ -24,8 +24,8 @@
         <p class="hero-kicker">Today's Insights</p>
         <h1 id="todaySummary" class="hero-summary">今日の出版業界シグナルを準備しています。</h1>
         <div class="hero-controls">
-          <button id="refreshBtn" class="refresh-btn" type="button">Refresh</button>
-          <p id="lastUpdated" class="last-updated">毎朝 09:00 JST 自動更新 / それ以外は Refresh 実行</p>
+          <button id="refreshBtn" class="refresh-btn" type="button">最新のニュースを集める</button>
+          <p id="lastUpdated" class="last-updated"></p>
         </div>
         <div class="headline-ribbon" aria-hidden="true">
           <div class="headline-track">
@@ -33,10 +33,6 @@
             <p id="headlineB">Publishing Signals • Publishing Signals •</p>
           </div>
         </div>
-      </section>
-
-      <section class="theme-cloud">
-        <div id="topicTags" class="topic-tags"></div>
       </section>
 
       <section id="feedGrid" class="feed-grid"></section>
