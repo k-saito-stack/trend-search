@@ -314,29 +314,30 @@ body {
   color: #7e5210 !important;
 }
 
-.ranking-groups-row {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
+.ranking-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
 }
 
-.ranking-group {
-  flex: 1;
-  min-width: 0;
+.ranking-col-rank {
+  width: 30px;
+}
+
+/* .ranking-col-title は幅未指定 → table-layout:fixed が残り幅を均等分配 */
+
+.ranking-col-divider {
+  width: 16px;
 }
 
 .ranking-group-label {
-  margin: 0 0 6px;
+  padding: 0 2px 6px;
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--ink-soft);
-}
-
-.ranking-table {
-  width: 100%;
-  border-collapse: collapse;
+  text-align: left;
 }
 
 .ranking-table tbody tr {
@@ -347,11 +348,11 @@ body {
   border-bottom: none;
 }
 
-.ranking-row[data-url] {
+.rank-title-cell[data-url] {
   cursor: pointer;
 }
 
-.ranking-row[data-url]:hover {
+.rank-title-cell[data-url]:hover {
   background: rgba(245, 191, 69, 0.08);
 }
 

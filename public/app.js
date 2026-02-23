@@ -114,50 +114,58 @@ function buildHeadline(run) {
 function buildRankingCard(rankingItems) {
   if (rankingItems.length === 0) return '';
 
-  // ソース名ごとにグループ化
+  // ソース名ごとにグループ化してソート
   const groups = new Map();
   for (const item of rankingItems) {
     const key = item.sourceName || 'Amazonランキング';
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   }
+  const groupEntries = Array.from(groups.entries()).map(([sourceName, items]) => ({
+    sourceName,
+    items: items.sort((a, b) => Number(a.metricValue || 0) - Number(b.metricValue || 0)).slice(0, 10),
+  }));
 
-  const tables = Array.from(groups.entries())
-    .map(([sourceName, items]) => {
-      const rows = items
-        .sort((a, b) => Number(a.metricValue || 0) - Number(b.metricValue || 0))
-        .slice(0, 10)
-        .map((item) => {
-          const rank = Number(item.metricValue || 0);
-          const title = escapeHtml(item.title || '');
-          const url = escapeHtml(item.url || '');
-          const rankClass = rank === 1 ? 'rank-gold' : rank === 2 ? 'rank-silver' : rank === 3 ? 'rank-bronze' : '';
-              return `
-            <tr class="ranking-row" data-url="${url}">
-              <td class="rank-cell ${rankClass}">${rank}</td>
-              <td class="rank-title-cell">${title}</td>
-            </tr>
-          `;
-        })
-        .join('');
+  const maxRows = Math.max(...groupEntries.map((g) => g.items.length), 0);
 
-      return `
-        <div class="ranking-group">
-          <p class="ranking-group-label">${escapeHtml(sourceName)}</p>
-          <table class="ranking-table">
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      `;
-    })
-    .join('');
+  // colgroup: rank列は固定幅、title列は等幅で自動分配（table-layout:fixedと組み合わせ）
+  const colgroupCols = groupEntries.flatMap((_, i) => {
+    const cols = ['<col class="ranking-col-rank">', '<col class="ranking-col-title">'];
+    if (i < groupEntries.length - 1) cols.push('<col class="ranking-col-divider">');
+    return cols;
+  }).join('');
+
+  // ヘッダー行
+  const headerCells = groupEntries
+    .map((g) => `<th class="ranking-group-label" colspan="2">${escapeHtml(g.sourceName)}</th>`)
+    .join('<th class="ranking-col-divider"></th>');
+
+  // データ行：各グループを同じ<tr>に並べて行の高さを揃える
+  const bodyRows = Array.from({ length: maxRows }, (_, i) => {
+    const cells = groupEntries
+      .map((g) => {
+        const item = g.items[i];
+        if (!item) return '<td></td><td></td>';
+        const rank = Number(item.metricValue || 0);
+        const title = escapeHtml(item.title || '');
+        const url = escapeHtml(item.url || '');
+        const rankClass = rank === 1 ? 'rank-gold' : rank === 2 ? 'rank-silver' : rank === 3 ? 'rank-bronze' : '';
+        return `<td class="rank-cell ${rankClass}">${rank}</td><td class="rank-title-cell" data-url="${url}">${title}</td>`;
+      })
+      .join('<td class="ranking-col-divider"></td>');
+    return `<tr class="ranking-row">${cells}</tr>`;
+  }).join('');
 
   return `
     <article class="feed-card ranking-card">
       <div class="card-meta">
         <span class="meta-pill ranking-pill">Amazonランキング</span>
       </div>
-      <div class="ranking-groups-row">${tables}</div>
+      <table class="ranking-table">
+        <colgroup>${colgroupCols}</colgroup>
+        <thead><tr>${headerCells}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
     </article>
   `;
 }
@@ -231,10 +239,10 @@ function renderFeed(run) {
     });
   });
 
-  // ランキング行全体クリックでURLを開く
-  feedGridEl.querySelectorAll('.ranking-row[data-url]').forEach((row) => {
-    row.addEventListener('click', () => {
-      const href = row.dataset.url;
+  // ランキングタイトルセルクリックでURLを開く（1行に本・Kindleが共存するためtd単位）
+  feedGridEl.querySelectorAll('.rank-title-cell[data-url]').forEach((cell) => {
+    cell.addEventListener('click', () => {
+      const href = cell.dataset.url;
       if (href) window.open(href, '_blank', 'noreferrer');
     });
   });
