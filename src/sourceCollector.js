@@ -112,7 +112,7 @@ function makeSignal(source, payload) {
 
 function buildXQuery(theme, sinceDate) {
   const core = String(theme.query || theme.name || '').trim();
-  return `${core} 出版 OR 書籍 OR 書店 OR 書評 OR PR TIMES since:${sinceDate}`;
+  return `${core} 出版 OR 書籍 OR 書店 OR 書評 OR 重版 OR PR TIMES since:${sinceDate}`;
 }
 
 function parseAmazonRanking(html, source, limit) {
@@ -163,11 +163,57 @@ function parseAmazonRanking(html, source, limit) {
   }));
 }
 
+function parseTohanRanking(html, limit) {
+  const results = [];
+  const seen = new Set();
+  // e-hon.ne.jpへのISBNリンクと<img alt="書名">のパターンを抽出
+  const pattern = /<a[^>]+href="(https?:\/\/www\.e-hon\.ne\.jp[^"]+refISBN=[^"]+)"[^>]*>[\s\S]*?<img[^>]+alt="([^"]{3,})"[^>]*>/gi;
+  let hit;
+
+  while ((hit = pattern.exec(html)) && results.length < limit * 2) {
+    const url = hit[1].trim();
+    const title = hit[2].trim();
+    if (!title || title.length < 3) continue;
+
+    const key = title.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    results.push({ url, title, summary: `${title}（トーハン週間ランキング）` });
+  }
+
+  return results.slice(0, limit).map((entry, index) => ({
+    ...entry,
+    metricLabel: 'rank',
+    metricValue: index + 1,
+  }));
+}
+
 async function collectGoogleNews(source, context) {
   const queryBase = fillTemplate(source.queryTemplate, context.theme, context.sinceDate);
   const query = `${queryBase} when:${Math.min(30, Math.max(1, context.theme.periodDays || 2))}d`;
   const feedUrl = buildGoogleNewsRssUrl(query);
   const xml = await fetchText(feedUrl, { timeoutMs: context.timeoutMs });
+  const entries = parseRssFeed(xml);
+
+  return entries
+    .filter((entry) => entry.link)
+    .filter((entry) => isRecentEnough(entry.publishedAt, context.sinceDate))
+    .slice(0, Number(source.itemLimit || 8))
+    .map((entry) =>
+      makeSignal(source, {
+        title: entry.title,
+        summary: entry.summary || entry.title,
+        url: entry.link,
+        publishedAt: entry.publishedAt || null,
+        metricLabel: 'mentions',
+        metricValue: 1,
+      }),
+    );
+}
+
+async function collectDirectRss(source, context) {
+  const xml = await fetchText(source.url, { timeoutMs: context.timeoutMs });
   const entries = parseRssFeed(xml);
 
   return entries
@@ -203,6 +249,23 @@ async function collectAmazonBestseller(source, context) {
       metricLabel: entry.metricLabel,
       metricValue: entry.metricValue,
       coverImageUrl: entry.coverImageUrl,
+    }),
+  );
+}
+
+async function collectTohanRanking(source, context) {
+  const html = await fetchText(source.url, {
+    timeoutMs: context.timeoutMs,
+    headers: { 'Accept-Language': 'ja,en-US;q=0.9' },
+  });
+  const entries = parseTohanRanking(html, Number(source.itemLimit || 10));
+  return entries.map((entry) =>
+    makeSignal(source, {
+      title: entry.title,
+      summary: entry.summary,
+      url: entry.url,
+      metricLabel: entry.metricLabel,
+      metricValue: entry.metricValue,
     }),
   );
 }
@@ -285,6 +348,28 @@ async function collectSingleSource(source, context) {
 
     if (source.kind === 'amazon_bestseller') {
       const items = await collectAmazonBestseller(source, context);
+      return {
+        source,
+        status: 'ok',
+        items,
+        meta: {},
+        durationMs: Date.now() - startedAt,
+      };
+    }
+
+    if (source.kind === 'rss_direct') {
+      const items = await collectDirectRss(source, context);
+      return {
+        source,
+        status: 'ok',
+        items,
+        meta: {},
+        durationMs: Date.now() - startedAt,
+      };
+    }
+
+    if (source.kind === 'tohan_bestseller') {
+      const items = await collectTohanRanking(source, context);
       return {
         source,
         status: 'ok',
