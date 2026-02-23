@@ -192,6 +192,32 @@ function parseTohanRanking(html, limit) {
   }));
 }
 
+function parseHontoRanking(html, limit) {
+  const results = [];
+  const seen = new Set();
+  // <h2 class="stHeading"><a href="https://honto.jp/ebook/pd_XXXXX.html?...">タイトル</a>
+  const pattern = /<h2[^>]+class="stHeading"[^>]*>[\s\S]*?<a[^>]+href="(https?:\/\/honto\.jp\/ebook\/pd_[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let hit;
+
+  while ((hit = pattern.exec(html)) && results.length < limit * 2) {
+    const url = hit[1].split('?')[0]; // cid等のトラッキングパラメータを除去
+    const title = stripTags(hit[2]).trim();
+    if (!title || title.length < 2) continue;
+
+    const key = title.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    results.push({ url, title, summary: `${title}（honto電子書籍ランキング）` });
+  }
+
+  return results.slice(0, limit).map((entry, index) => ({
+    ...entry,
+    metricLabel: 'rank',
+    metricValue: index + 1,
+  }));
+}
+
 async function collectGoogleNews(source, context) {
   const queryBase = fillTemplate(source.queryTemplate, context.theme, context.sinceDate);
   const query = `${queryBase} when:${Math.min(30, Math.max(1, context.theme.periodDays || 2))}d`;
@@ -218,10 +244,14 @@ async function collectGoogleNews(source, context) {
 async function collectDirectRss(source, context) {
   const xml = await fetchText(source.url, { timeoutMs: context.timeoutMs });
   const entries = parseRssFeed(xml);
+  // source.maxAgeDays が設定されていればそちらを優先（週刊更新の媒体など向け）
+  const effectiveSinceDate = source.maxAgeDays
+    ? getSinceDate(source.maxAgeDays)
+    : context.sinceDate;
 
   return entries
     .filter((entry) => entry.link)
-    .filter((entry) => isRecentEnough(entry.publishedAt, context.sinceDate))
+    .filter((entry) => isRecentEnough(entry.publishedAt, effectiveSinceDate))
     .slice(0, Number(source.itemLimit || 8))
     .map((entry) =>
       makeSignal(source, {
@@ -262,6 +292,23 @@ async function collectTohanRanking(source, context) {
     headers: { 'Accept-Language': 'ja,en-US;q=0.9' },
   });
   const entries = parseTohanRanking(html, Number(source.itemLimit || 10));
+  return entries.map((entry) =>
+    makeSignal(source, {
+      title: entry.title,
+      summary: entry.summary,
+      url: entry.url,
+      metricLabel: entry.metricLabel,
+      metricValue: entry.metricValue,
+    }),
+  );
+}
+
+async function collectHontoRanking(source, context) {
+  const html = await fetchText(source.url, {
+    timeoutMs: context.timeoutMs,
+    headers: { 'Accept-Language': 'ja,en-US;q=0.9' },
+  });
+  const entries = parseHontoRanking(html, Number(source.itemLimit || 10));
   return entries.map((entry) =>
     makeSignal(source, {
       title: entry.title,
@@ -373,6 +420,17 @@ async function collectSingleSource(source, context) {
 
     if (source.kind === 'tohan_bestseller') {
       const items = await collectTohanRanking(source, context);
+      return {
+        source,
+        status: 'ok',
+        items,
+        meta: {},
+        durationMs: Date.now() - startedAt,
+      };
+    }
+
+    if (source.kind === 'honto_bestseller') {
+      const items = await collectHontoRanking(source, context);
       return {
         source,
         status: 'ok',
