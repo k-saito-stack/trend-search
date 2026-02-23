@@ -17,16 +17,13 @@ function ensureDataFiles() {
 
   if (!fs.existsSync(THEMES_FILE)) {
     const primary = buildPrimaryTheme(null);
-    fs.writeFileSync(THEMES_FILE, JSON.stringify([primary], null, 2));
+    writeJson(THEMES_FILE, [primary]);
   }
 
   if (!fs.existsSync(TREND_FILE)) {
-    fs.writeFileSync(
-      TREND_FILE,
-      JSON.stringify({
-        runs: [],
-      }, null, 2),
-    );
+    writeJson(TREND_FILE, {
+      runs: [],
+    });
   }
 }
 
@@ -42,23 +39,74 @@ function buildPrimaryTheme(current, now = new Date().toISOString()) {
   };
 }
 
-function readJson(filePath, fallback) {
+function readJson(filePath, fallback, options = {}) {
+  const allowMissing = options.allowMissing !== false;
+  const label = options.label || path.basename(filePath);
+
   try {
     const text = fs.readFileSync(filePath, 'utf8');
     return JSON.parse(text);
-  } catch {
-    return fallback;
+  } catch (error) {
+    if (error && error.code === 'ENOENT' && allowMissing) {
+      return fallback;
+    }
+
+    if (error instanceof SyntaxError) {
+      throw new Error(`${label} のJSONが破損しています。バックアップから復旧してください。`);
+    }
+
+    throw error;
   }
 }
 
 function writeJson(filePath, data) {
-  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  const tempPath = path.join(dir, `.${base}.${process.pid}.${Date.now()}.tmp`);
+  const text = `${JSON.stringify(data, null, 2)}\n`;
+  let fd = null;
+
+  try {
+    fd = fs.openSync(tempPath, 'w', 0o600);
+    fs.writeFileSync(fd, text, 'utf8');
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+
+    fs.renameSync(tempPath, filePath);
+
+    // rename の耐久性を高めるため、親ディレクトリも fsync する
+    const dirFd = fs.openSync(dir, 'r');
+    try {
+      fs.fsyncSync(dirFd);
+    } finally {
+      fs.closeSync(dirFd);
+    }
+  } catch (error) {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        // noop
+      }
+    }
+
+    if (fs.existsSync(tempPath)) {
+      try {
+        fs.unlinkSync(tempPath);
+      } catch {
+        // noop
+      }
+    }
+
+    throw error;
+  }
 }
 
 function readThemes() {
   ensureDataFiles();
   const now = new Date().toISOString();
-  const themes = readJson(THEMES_FILE, []);
+  const themes = readJson(THEMES_FILE, [], { label: 'themes.json' });
   const current = Array.isArray(themes) ? themes[0] : null;
   const primary = buildPrimaryTheme(current, now);
 
@@ -98,7 +146,7 @@ function deleteTheme(themeId) {
 
 function readTrendStore() {
   ensureDataFiles();
-  const store = readJson(TREND_FILE, { runs: [] });
+  const store = readJson(TREND_FILE, { runs: [] }, { label: 'trends.json' });
   if (!store.runs || !Array.isArray(store.runs)) {
     return { runs: [] };
   }

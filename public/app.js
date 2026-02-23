@@ -1,6 +1,7 @@
 const state = {
   snapshot: null,
 };
+const RUN_TOKEN_STORAGE_KEY = 'trend_atelier_run_token';
 
 const refreshBtnEl = document.getElementById('refreshBtn');
 const todaySummaryEl = document.getElementById('todaySummary');
@@ -27,19 +28,88 @@ function notify(message, isError = false) {
 }
 
 async function api(path, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+
   const response = await fetch(path, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
     ...options,
+    headers,
   });
 
   const json = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(json.error || 'API request failed');
+    const error = new Error(json.error || 'API request failed');
+    error.status = response.status;
+    error.code = String(json.code || '');
+    error.retryInMs = Number(json.retryInMs || 0);
+    throw error;
   }
 
   return json;
+}
+
+function buildRunRequestHeaders() {
+  const token = sessionStorage.getItem(RUN_TOKEN_STORAGE_KEY) || '';
+  const headers = {
+    'X-Requested-With': 'trend-atelier-web',
+  };
+
+  if (token) {
+    headers['X-Run-Token'] = token;
+  }
+
+  return headers;
+}
+
+function normalizeRunError(error) {
+  if (error.code === 'RUN_ALREADY_RUNNING') {
+    return new Error('現在収集中です。完了してから再実行してください。');
+  }
+
+  if (error.code === 'RUN_RATE_LIMITED') {
+    const waitSec = Math.max(1, Math.ceil(Number(error.retryInMs || 0) / 1000));
+    return new Error(`実行間隔が短すぎます。${waitSec}秒後に再試行してください。`);
+  }
+
+  return error;
+}
+
+async function triggerRunWithAuth() {
+  try {
+    return await api('/api/run', {
+      method: 'POST',
+      headers: buildRunRequestHeaders(),
+      body: JSON.stringify({}),
+    });
+  } catch (error) {
+    if (error.code !== 'RUN_AUTH_REQUIRED') {
+      throw normalizeRunError(error);
+    }
+
+    const provided = window.prompt('Run API token を入力してください');
+    if (!provided || !provided.trim()) {
+      throw new Error('認証トークン未入力のため実行を中止しました。');
+    }
+
+    sessionStorage.setItem(RUN_TOKEN_STORAGE_KEY, provided.trim());
+
+    try {
+      return await api('/api/run', {
+        method: 'POST',
+        headers: buildRunRequestHeaders(),
+        body: JSON.stringify({}),
+      });
+    } catch (retryError) {
+      if (retryError.code === 'RUN_AUTH_REQUIRED') {
+        sessionStorage.removeItem(RUN_TOKEN_STORAGE_KEY);
+        throw new Error('認証トークンが不正です。');
+      }
+
+      throw normalizeRunError(retryError);
+    }
+  }
 }
 
 function formatDate(isoDate) {
@@ -310,10 +380,7 @@ async function refresh() {
   refreshBtnEl.textContent = 'Refreshing...';
 
   try {
-    await api('/api/run', {
-      method: 'POST',
-      body: JSON.stringify({}),
-    });
+    await triggerRunWithAuth();
     await loadSnapshot();
     render();
     notify('最新情報を更新しました');
@@ -404,4 +471,3 @@ function ditherThreshold(x, y) {
 
   draw();
 })();
-

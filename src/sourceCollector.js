@@ -5,6 +5,7 @@ const { getSourceCatalog, buildGoogleNewsRssUrl } = require('./sourceCatalog');
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.SOURCE_HTTP_TIMEOUT_MS || 12000);
 const DEFAULT_CONCURRENCY = Math.max(1, Number(process.env.SOURCE_CONCURRENCY || 4));
+const DEFAULT_MAX_RESPONSE_BYTES = Math.max(64 * 1024, Number(process.env.SOURCE_MAX_RESPONSE_BYTES || 2 * 1024 * 1024));
 const DEFAULT_USER_AGENT = 'TrendAtelierCollector/0.2 (+https://localhost)';
 
 function truncate(text, max = 180) {
@@ -55,6 +56,7 @@ function isRecentEnough(publishedAt, sinceDate) {
 
 async function fetchText(url, options = {}) {
   const timeoutMs = Number(options.timeoutMs || DEFAULT_TIMEOUT_MS);
+  const maxResponseBytes = Number(options.maxResponseBytes || DEFAULT_MAX_RESPONSE_BYTES);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -70,7 +72,12 @@ async function fetchText(url, options = {}) {
       signal: controller.signal,
     });
 
-    const text = await response.text();
+    const contentLength = Number(response.headers.get('content-length') || 0);
+    if (Number.isFinite(contentLength) && contentLength > maxResponseBytes) {
+      throw new Error(`response too large: ${contentLength} bytes (max ${maxResponseBytes})`);
+    }
+
+    const text = await readResponseTextWithLimit(response, maxResponseBytes, controller);
     if (!response.ok) {
       throw new Error(`${response.status} ${response.statusText}`.trim());
     }
@@ -78,6 +85,44 @@ async function fetchText(url, options = {}) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function readResponseTextWithLimit(response, maxBytes, controller) {
+  if (!response.body || typeof response.body.getReader !== 'function') {
+    const text = await response.text();
+    if (Buffer.byteLength(text, 'utf8') > maxBytes) {
+      throw new Error(`response too large (max ${maxBytes} bytes)`);
+    }
+    return text;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = value || new Uint8Array(0);
+    total += chunk.byteLength;
+
+    if (total > maxBytes) {
+      controller.abort();
+      throw new Error(`response too large (max ${maxBytes} bytes)`);
+    }
+
+    chunks.push(chunk);
+  }
+
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return new TextDecoder('utf-8', { fatal: false }).decode(merged);
 }
 
 function fillTemplate(template, theme, sinceDate) {

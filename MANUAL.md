@@ -41,6 +41,9 @@ Content-Type: application/json
 {}
 ```
 
+- `RUN_API_TOKEN` 設定時: `Authorization: Bearer <token>` または `X-Run-Token: <token>` が必要です。
+- `RUN_AUTH_PROXY_HEADER` 設定時: 指定ヘッダー（例: `x-forwarded-user`）が必要です。
+
 ### 4.3 実行履歴
 ```http
 GET /api/runs?limit=10
@@ -68,10 +71,15 @@ npm run start
 ```env
 XAI_API_KEY=YOUR_XAI_API_KEY
 XAI_MODEL=grok-4-1-fast
+HOST=127.0.0.1
 SOURCE_ENABLE_X=1
 # ENABLED_SOURCE_IDS=news_publish_general,news_pr_times,ranking_amazon_books
 # SOURCE_HTTP_TIMEOUT_MS=12000
 # SOURCE_CONCURRENCY=4
+# SOURCE_MAX_RESPONSE_BYTES=2097152
+# RUN_API_TOKEN=replace-with-long-random-token
+# RUN_AUTH_PROXY_HEADER=x-forwarded-user
+# RUN_MIN_INTERVAL_MS=30000
 PORT=3000
 RUN_ON_START=0
 ```
@@ -81,6 +89,8 @@ RUN_ON_START=0
 - サーバーが `09:00 JST` に起動していないと自動実行されません。
 - 外部サイト都合で一部ソースが失敗しても、他ソースは継続します。
 - データは `data/trends.json` に保存されます（上限1000件）。
+- `POST /api/run` は同時実行されません。短時間連打時は `429` が返ります。
+- `RUN_API_TOKEN` または `RUN_AUTH_PROXY_HEADER` を設定した場合、手動実行時に認証が必要です。
 
 ## 7. 開発者向け主要ファイル
 
