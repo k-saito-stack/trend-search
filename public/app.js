@@ -111,13 +111,13 @@ function buildHeadline(run) {
 }
 
 
-function buildRankingCard(rankingItems) {
+function buildRankingCard(rankingItems, label) {
   if (rankingItems.length === 0) return '';
 
   // ソース名ごとにグループ化してソート
   const groups = new Map();
   for (const item of rankingItems) {
-    const key = item.sourceName || 'Amazonランキング';
+    const key = item.sourceName || 'ランキング';
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   }
@@ -159,7 +159,7 @@ function buildRankingCard(rankingItems) {
   return `
     <article class="feed-card ranking-card">
       <div class="card-meta">
-        <span class="meta-pill ranking-pill">Amazonランキング</span>
+        <span class="meta-pill ranking-pill">${escapeHtml(label || 'ランキング')}</span>
       </div>
       <table class="ranking-table">
         <colgroup>${colgroupCols}</colgroup>
@@ -181,7 +181,10 @@ function renderFeed(run) {
   const rankingItems = materials.filter((item) => item.sourceCategory === 'ranking');
   const normalItems = materials.filter((item) => item.sourceCategory !== 'ranking');
 
-  const rankingCardHtml = buildRankingCard(rankingItems);
+  // AmazonのみのカードとAmazon以外（書店・取次）のカードに分割
+  const amazonItems = rankingItems.filter((item) => item.sourceName && item.sourceName.includes('Amazon'));
+  const bookstoreItems = rankingItems.filter((item) => !item.sourceName || !item.sourceName.includes('Amazon'));
+  const rankingCardHtml = buildRankingCard(amazonItems, 'Amazonランキング') + buildRankingCard(bookstoreItems, '書店・取次ランキング');
 
   const normalCardsHtml = normalItems
     .map((item, index) => {

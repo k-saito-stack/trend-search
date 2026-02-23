@@ -195,20 +195,33 @@ function parseTohanRanking(html, limit) {
 function parseHontoRanking(html, limit) {
   const results = [];
   const seen = new Set();
-  // <h2 class="stHeading"><a href="https://honto.jp/ebook/pd_XXXXX.html?...">タイトル</a>
-  const pattern = /<h2[^>]+class="stHeading"[^>]*>[\s\S]*?<a[^>]+href="(https?:\/\/honto\.jp\/ebook\/pd_[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
   let hit;
 
-  while ((hit = pattern.exec(html)) && results.length < limit * 2) {
+  // まず電子書籍ページ（/ebook/pd_ リンクあり）を試みる
+  const ebookPattern = /<h2[^>]+class="stHeading"[^>]*>[\s\S]*?<a[^>]+href="(https?:\/\/honto\.jp\/ebook\/pd_[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  while ((hit = ebookPattern.exec(html)) && results.length < limit * 2) {
     const url = hit[1].split('?')[0]; // cid等のトラッキングパラメータを除去
     const title = stripTags(hit[2]).trim();
     if (!title || title.length < 2) continue;
-
     const key = title.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
+    results.push({ url, title, summary: `${title}（hontoランキング）` });
+  }
 
-    results.push({ url, title, summary: `${title}（honto電子書籍ランキング）` });
+  // 電子書籍リンクが見つからない場合は実店舗・紙書籍ページとして処理
+  if (results.length === 0) {
+    const physicalPattern = /<h2[^>]+class="stHeading"[^>]*>([\s\S]*?)<\/h2>/gi;
+    while ((hit = physicalPattern.exec(html)) && results.length < limit * 2) {
+      const title = stripTags(hit[1]).trim();
+      if (!title || title.length < 2) continue;
+      const key = title.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      // 個別商品URLがないため、書名でhonto内検索URLを生成
+      const url = `https://honto.jp/netstore/search.html?search.keyword=${encodeURIComponent(title)}`;
+      results.push({ url, title, summary: `${title}（hontoランキング）` });
+    }
   }
 
   return results.slice(0, limit).map((entry, index) => ({
