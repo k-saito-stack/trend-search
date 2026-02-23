@@ -231,6 +231,42 @@ function parseHontoRanking(html, limit) {
   }));
 }
 
+function parseYurindoRanking(html, limit) {
+  const results = [];
+  const seen = new Set();
+  let hit;
+
+  // book-detailのh3からタイトルを抽出
+  const titlePattern = /<div[^>]+class="book-detail"[^>]*>[\s\S]*?<h3>([\s\S]*?)<\/h3>/gi;
+  const titles = [];
+  while ((hit = titlePattern.exec(html))) {
+    const title = stripTags(hit[1]).trim();
+    if (title && title.length >= 2) titles.push(title);
+  }
+
+  // 有隣堂在庫検索URL（search.yurindo.bscentral.jp/item?ic=ISBN）を抽出
+  const urlPattern = /<a[^>]+href="(https?:\/\/search\.yurindo\.bscentral\.jp\/item\?ic=[^"]+)"/gi;
+  const urls = [];
+  while ((hit = urlPattern.exec(html))) {
+    urls.push(hit[1].trim());
+  }
+
+  for (let i = 0; i < Math.min(titles.length, limit); i++) {
+    const title = titles[i];
+    const key = title.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const url = urls[i] || `https://search.yurindo.bscentral.jp/search/?keyword=${encodeURIComponent(title)}`;
+    results.push({ url, title, summary: `${title}（有隣堂ランキング）` });
+  }
+
+  return results.slice(0, limit).map((entry, index) => ({
+    ...entry,
+    metricLabel: 'rank',
+    metricValue: index + 1,
+  }));
+}
+
 async function collectGoogleNews(source, context) {
   const queryBase = fillTemplate(source.queryTemplate, context.theme, context.sinceDate);
   const query = `${queryBase} when:${Math.min(30, Math.max(1, context.theme.periodDays || 2))}d`;
@@ -322,6 +358,23 @@ async function collectHontoRanking(source, context) {
     headers: { 'Accept-Language': 'ja,en-US;q=0.9' },
   });
   const entries = parseHontoRanking(html, Number(source.itemLimit || 10));
+  return entries.map((entry) =>
+    makeSignal(source, {
+      title: entry.title,
+      summary: entry.summary,
+      url: entry.url,
+      metricLabel: entry.metricLabel,
+      metricValue: entry.metricValue,
+    }),
+  );
+}
+
+async function collectYurindoRanking(source, context) {
+  const html = await fetchText(source.url, {
+    timeoutMs: context.timeoutMs,
+    headers: { 'Accept-Language': 'ja,en-US;q=0.9' },
+  });
+  const entries = parseYurindoRanking(html, Number(source.itemLimit || 10));
   return entries.map((entry) =>
     makeSignal(source, {
       title: entry.title,
@@ -444,6 +497,17 @@ async function collectSingleSource(source, context) {
 
     if (source.kind === 'honto_bestseller') {
       const items = await collectHontoRanking(source, context);
+      return {
+        source,
+        status: 'ok',
+        items,
+        meta: {},
+        durationMs: Date.now() - startedAt,
+      };
+    }
+
+    if (source.kind === 'yurindo_bestseller') {
+      const items = await collectYurindoRanking(source, context);
       return {
         source,
         status: 'ok',

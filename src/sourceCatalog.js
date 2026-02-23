@@ -181,16 +181,6 @@ const SOURCE_CATALOG = [
     url: 'https://www.tohan.jp/bestsellers/',
   },
   {
-    id: 'ranking_honto_ebook',
-    kind: 'honto_bestseller',
-    name: 'hontoランキング / 電子書籍',
-    category: 'ranking',
-    costTier: 'free',
-    priority: 4,
-    itemLimit: 10,
-    url: 'https://honto.jp/ranking/gr/bestseller_1101_1204_012.html',
-  },
-  {
     id: 'ranking_maruzen',
     kind: 'honto_bestseller',
     name: '丸善ランキング',
@@ -209,6 +199,16 @@ const SOURCE_CATALOG = [
     priority: 4,
     itemLimit: 10,
     url: 'https://honto.jp/ranking/gr/bestseller_1101_1206_011.html?shgcd=HB320',
+  },
+  {
+    id: 'ranking_yurindo',
+    kind: 'yurindo_bestseller',
+    name: '有隣堂ランキング',
+    category: 'ranking',
+    costTier: 'free',
+    priority: 4,
+    itemLimit: 10,
+    url: 'https://www.yurindo.co.jp/ranking/',
   },
   {
     id: 'hatenabookmark_books',
