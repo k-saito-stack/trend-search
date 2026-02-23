@@ -191,9 +191,10 @@ function buildClusters(scoredSignals, maxClusters = 5) {
 }
 
 function buildMaterials(scoredSignals, limit = 30) {
-  // ランキングと非ランキングを分離：ランキングはlimit制限から除外して全件保証
+  // ランキング・セール（deals）と非ランキングを分離：limit制限から除外して全件保証
   const rankingSignals = scoredSignals.filter((s) => s.sourceCategory === 'ranking');
-  const otherSignals = scoredSignals.filter((s) => s.sourceCategory !== 'ranking');
+  const dealsSignals = scoredSignals.filter((s) => s.sourceCategory === 'deals');
+  const otherSignals = scoredSignals.filter((s) => s.sourceCategory !== 'ranking' && s.sourceCategory !== 'deals');
 
   // Xはそのまま全件通す。その他ソースは1ソースあたり最大6件に制限してソース多様性を確保
   const PER_SOURCE_LIMIT = 6;
@@ -231,7 +232,10 @@ function buildMaterials(scoredSignals, limit = 30) {
     );
   }
 
-  return [...otherMaterials, ...rankingMaterials];
+  // dealsは全件そのまま含める
+  const dealsMaterials = dealsSignals.map(postFromSignal);
+
+  return [...otherMaterials, ...rankingMaterials, ...dealsMaterials];
 }
 
 function buildCoverage(sourceStats, dedupedSignals, totalBeforeDedupe) {

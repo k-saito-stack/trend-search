@@ -451,6 +451,48 @@ async function collectYurindoRanking(source, context) {
   );
 }
 
+function parseKindleDailyDeals(html, limit) {
+  const results = [];
+  const seen = new Set();
+  // <a title="書籍タイトル" href="/gp/product/BXXXXXXXXX..."> の形式で埋め込まれている
+  const blockPattern = /<a([^>]+href="\/(?:gp\/product|dp)\/(B[A-Z0-9]{9,10})[^"]*"[^>]*)>/gi;
+  let hit;
+  while ((hit = blockPattern.exec(html)) && results.length < limit * 2) {
+    const attrs = hit[1];
+    const asin = hit[2];
+    const titleMatch = attrs.match(/title="([^"]+)"/i);
+    if (!titleMatch) continue;
+    const title = titleMatch[1].trim();
+    if (!title || title.length < 2) continue;
+    if (seen.has(asin)) continue;
+    seen.add(asin);
+    results.push({
+      title,
+      url: `https://www.amazon.co.jp/dp/${asin}`,
+      summary: title,
+    });
+  }
+  return results.slice(0, limit);
+}
+
+async function collectKindleDailyDeals(source, context) {
+  const html = await fetchText(source.url, {
+    timeoutMs: context.timeoutMs,
+    headers: { 'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8' },
+  });
+  const limit = Number(source.itemLimit || 20);
+  const entries = parseKindleDailyDeals(html, limit);
+  return entries.map((entry) =>
+    makeSignal(source, {
+      title: entry.title,
+      summary: entry.summary,
+      url: entry.url,
+      metricLabel: '',
+      metricValue: 0,
+    }),
+  );
+}
+
 async function collectXGrok(source, context) {
   if (!context.apiKey) {
     return {
@@ -589,6 +631,11 @@ async function collectSingleSource(source, context) {
 
     if (source.kind === 'yahoo_follow') {
       const items = await collectYahooFollow(source, context);
+      return { source, status: 'ok', items, meta: {}, durationMs: Date.now() - startedAt };
+    }
+
+    if (source.kind === 'kindle_deals') {
+      const items = await collectKindleDailyDeals(source, context);
       return { source, status: 'ok', items, meta: {}, durationMs: Date.now() - startedAt };
     }
 

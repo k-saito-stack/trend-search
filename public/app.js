@@ -177,6 +177,39 @@ function buildRankingCard(rankingItems, label) {
   `;
 }
 
+function buildDealsCard(dealsItems) {
+  if (dealsItems.length === 0) return '';
+
+  // 3列グリッドで表示
+  const cols = 3;
+  const rows = [];
+  for (let i = 0; i < dealsItems.length; i += cols) {
+    const cells = [];
+    for (let c = 0; c < cols; c++) {
+      const item = dealsItems[i + c];
+      if (item) {
+        const url = escapeHtml(item.url || '');
+        const title = escapeHtml(item.title || '');
+        cells.push(`<td class="deals-title-cell" data-url="${url}">${title}</td>`);
+      } else {
+        cells.push('<td class="deals-title-cell"></td>');
+      }
+    }
+    rows.push(`<tr>${cells.join('')}</tr>`);
+  }
+
+  return `
+    <article class="feed-card deals-card">
+      <div class="card-meta">
+        <span class="meta-pill deals-pill">Kindle 日替わりセール</span>
+      </div>
+      <table class="deals-table">
+        <tbody>${rows.join('')}</tbody>
+      </table>
+    </article>
+  `;
+}
+
 function renderFeed(run) {
   const materials = run?.payload?.materials || [];
   if (materials.length === 0) {
@@ -184,9 +217,10 @@ function renderFeed(run) {
     return;
   }
 
-  // ランキング / それ以外に分類（X投稿と記事を統合）
+  // ランキング / deals / それ以外に分類（X投稿と記事を統合）
   const rankingItems = materials.filter((item) => item.sourceCategory === 'ranking');
-  const nonRankingItems = materials.filter((item) => item.sourceCategory !== 'ranking');
+  const dealsItems = materials.filter((item) => item.sourceCategory === 'deals');
+  const nonRankingItems = materials.filter((item) => item.sourceCategory !== 'ranking' && item.sourceCategory !== 'deals');
 
   // ネット書店（Amazon + 楽天）vs 書店・取次ランキングに分割
   const netStoreItems = rankingItems.filter((item) => item.sourceName && (item.sourceName.includes('Amazon') || item.sourceName.includes('楽天')));
@@ -221,9 +255,12 @@ function renderFeed(run) {
     `;
   }).join('');
 
+  const dealsCardHtml = buildDealsCard(dealsItems);
+
   const articlesColHtml = allCardsHtml ? `<div class="feed-col-articles">${allCardsHtml}</div>` : '';
   const rankingsColHtml = rankingCardHtml ? `<div class="feed-col-right">${rankingCardHtml}</div>` : '';
-  feedGridEl.innerHTML = articlesColHtml + rankingsColHtml;
+  const dealsColHtml = dealsCardHtml ? `<div class="feed-col-deals">${dealsCardHtml}</div>` : '';
+  feedGridEl.innerHTML = articlesColHtml + rankingsColHtml + dealsColHtml;
 
   // カード全体クリックでURLを開く
   feedGridEl.querySelectorAll('.feed-card[data-url]').forEach((card) => {
@@ -235,6 +272,14 @@ function renderFeed(run) {
 
   // ランキングセル（タイトル・数字）クリックでURLを開く
   feedGridEl.querySelectorAll('.rank-title-cell[data-url], .rank-cell[data-url]').forEach((cell) => {
+    cell.addEventListener('click', () => {
+      const href = cell.dataset.url;
+      if (href) window.open(href, '_blank', 'noreferrer');
+    });
+  });
+
+  // deals セルクリックでURLを開く
+  feedGridEl.querySelectorAll('.deals-title-cell[data-url]').forEach((cell) => {
     cell.addEventListener('click', () => {
       const href = cell.dataset.url;
       if (href) window.open(href, '_blank', 'noreferrer');

@@ -203,6 +203,45 @@ body {
   min-width: 0;
 }
 
+/* Kindle日替わりセール列（最下段・全幅） */
+.feed-col-deals {
+  min-width: 0;
+}
+
+.deals-card {
+  background: linear-gradient(160deg, #edf9fd 0%, #fffdf8 74%);
+  border-color: rgba(63, 154, 183, 0.35);
+}
+
+.deals-pill {
+  background: rgba(63, 154, 183, 0.15) !important;
+  border-color: rgba(63, 154, 183, 0.4) !important;
+  color: #245f72 !important;
+}
+
+.deals-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.deals-title-cell {
+  padding: 6px 8px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(219, 205, 183, 0.4);
+  cursor: pointer;
+}
+
+.deals-title-cell:hover {
+  background: rgba(63, 154, 183, 0.1);
+}
+
+.deals-table tbody tr:last-child .deals-title-cell {
+  border-bottom: none;
+}
+
 .feed-card,
 .empty-card {
   margin-bottom: 0;
@@ -357,8 +396,8 @@ body {
 
 /* 電子書籍列（Kindle等）の視覚的区別 */
 .ranking-group-digital {
-  color: #3a48a0 !important;
-  background: rgba(80, 100, 220, 0.11);
+  color: #245f72 !important;
+  background: rgba(63, 154, 183, 0.11);
   border-radius: 4px 4px 0 0;
 }
 
@@ -366,20 +405,20 @@ body {
   display: inline-block;
   margin-left: 5px;
   font-size: 0.58rem;
-  border: 1px dashed rgba(80, 100, 200, 0.65);
+  border: 1px dashed rgba(63, 154, 183, 0.65);
   border-radius: 3px;
   padding: 1px 4px;
-  color: #3a48a0;
+  color: #245f72;
   vertical-align: middle;
   letter-spacing: 0.04em;
 }
 
 .rank-title-digital {
-  background: rgba(80, 100, 200, 0.07);
+  background: rgba(63, 154, 183, 0.07);
 }
 
 .rank-cell-digital {
-  background: rgba(80, 100, 200, 0.07);
+  background: rgba(63, 154, 183, 0.07);
 }
 
 .rank-title-cell[data-url],
@@ -400,7 +439,7 @@ td:has(+ .rank-title-cell[data-url]:hover).rank-cell {
 .rank-cell-digital[data-url]:hover + .rank-title-digital,
 .rank-title-digital[data-url]:hover,
 td:has(+ .rank-title-digital[data-url]:hover).rank-cell-digital {
-  background: rgba(80, 100, 200, 0.22);
+  background: rgba(63, 154, 183, 0.22);
 }
 
 .rank-cell {

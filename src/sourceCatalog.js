@@ -266,6 +266,17 @@ const SOURCE_CATALOG = [
     itemLimit: 6,
     url: 'https://hon.jp/news/feed',
   },
+  // Kindle日替わりセール
+  {
+    id: 'kindle_daily_deals',
+    kind: 'kindle_deals',
+    name: 'Kindle日替わりセール',
+    category: 'deals',
+    costTier: 'free',
+    priority: 3,
+    itemLimit: 20,
+    url: 'https://www.amazon.co.jp/kindle-dbs/browse/?_encoding=UTF8&metadata=storeType%3Debooks&widgetId=ebooks-deals-storefront_KindleDailyDealsStrategy&title=Kindle%E6%97%A5%E6%9B%BF%E3%82%8F%E3%82%8A%E3%82%BB%E3%83%BC%E3%83%AB&sourceType=recs&tag=137439-4-22',
+  },
 ];
 
 function buildGoogleNewsRssUrl(query) {
