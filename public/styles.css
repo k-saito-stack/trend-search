@@ -39,6 +39,15 @@ body {
   background-size: 32px 32px;
 }
 
+.bg-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+}
+
 .page-shell {
   width: min(1160px, 100%);
   margin: 0 auto;
@@ -68,10 +77,10 @@ body {
 .hero-summary {
   margin: 0;
   font-family: 'Outfit', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif;
-  font-size: clamp(1.7rem, 4.2vw, 3.2rem);
-  font-weight: 800;
-  line-height: 1.12;
-  letter-spacing: -0.03em;
+  font-size: clamp(1.1rem, 1.8vw, 1.45rem);
+  font-weight: 700;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
   max-width: 980px;
 }
 
@@ -169,18 +178,42 @@ body {
 }
 
 .feed-grid {
-  column-count: 3;
-  column-gap: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.feed-col-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.feed-col-right {
+  flex: 2;
+  min-width: 0;
 }
 
 .feed-card,
 .empty-card {
-  break-inside: avoid;
-  margin-bottom: 12px;
+  margin-bottom: 0;
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 14px;
   background: var(--paper);
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.feed-card[data-url] {
+  cursor: pointer;
+}
+
+.feed-card[data-url]:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(160, 110, 40, 0.13);
+  border-color: rgba(195, 162, 110, 0.7);
 }
 
 .tone-1 {
@@ -255,6 +288,16 @@ body {
   color: var(--ink-soft);
 }
 
+/* ツイート埋め込みカード */
+.tweet-embed-card {
+  background: #fff;
+}
+
+.tweet-embed-card .twitter-tweet {
+  margin: 0 !important;
+  width: 100% !important;
+}
+
 /* ランキングカード */
 .ranking-card {
   background: linear-gradient(160deg, #fff8e8 0%, #fffdf8 74%);
@@ -271,12 +314,15 @@ body {
   color: #7e5210 !important;
 }
 
-.ranking-group {
-  margin-bottom: 16px;
+.ranking-groups-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
 }
 
-.ranking-group:last-child {
-  margin-bottom: 0;
+.ranking-group {
+  flex: 1;
+  min-width: 0;
 }
 
 .ranking-group-label {
@@ -301,7 +347,11 @@ body {
   border-bottom: none;
 }
 
-.ranking-table tbody tr:hover {
+.ranking-row[data-url] {
+  cursor: pointer;
+}
+
+.ranking-row[data-url]:hover {
   background: rgba(245, 191, 69, 0.08);
 }
 
@@ -325,16 +375,6 @@ body {
   font-size: 0.85rem;
   line-height: 1.4;
   vertical-align: top;
-}
-
-.rank-title-cell a {
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.rank-title-cell a:hover {
-  color: #1a6d85;
-  text-decoration: underline;
 }
 
 .toast {
@@ -374,15 +414,16 @@ a:focus-visible {
 
 @media (max-width: 980px) {
   .feed-grid {
-    column-count: 2;
+    flex-direction: column;
+  }
+
+  .feed-col-right {
+    flex: unset;
+    width: 100%;
   }
 }
 
 @media (max-width: 700px) {
-  .feed-grid {
-    column-count: 1;
-  }
-
   .hero-summary {
     font-size: clamp(1.7rem, 9vw, 2.7rem);
   }

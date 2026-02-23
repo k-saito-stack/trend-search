@@ -106,6 +106,7 @@ function makeSignal(source, payload) {
     metricLabel: payload.metricLabel || 'score',
     metricValue: Number(payload.metricValue || 0),
     likes: payload.metricLabel === 'likes' ? Number(payload.metricValue || 0) : 0,
+    coverImageUrl: payload.coverImageUrl || null,
   };
 }
 
@@ -141,10 +142,17 @@ function parseAmazonRanking(html, source, limit) {
     if (seen.has(key)) continue;
     seen.add(key);
 
+    // Amazon CDN画像URLを抽出してカバー画像として使用
+    const imgMatch = body.match(/src="(https?:\/\/m\.media-amazon\.com\/images\/I\/[^"]+)"/i);
+    const coverImageUrl = imgMatch
+      ? imgMatch[1].replace(/\._[A-Z_]{2,20}_(?=\.)/, '._SL200_')
+      : null;
+
     results.push({
       url,
       title,
       summary: `${title}（Amazonランキング監視）`,
+      coverImageUrl,
     });
   }
 
@@ -194,6 +202,7 @@ async function collectAmazonBestseller(source, context) {
       url: entry.url,
       metricLabel: entry.metricLabel,
       metricValue: entry.metricValue,
+      coverImageUrl: entry.coverImageUrl,
     }),
   );
 }

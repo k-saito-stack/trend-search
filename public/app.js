@@ -132,10 +132,10 @@ function buildRankingCard(rankingItems) {
           const title = escapeHtml(item.title || '');
           const url = escapeHtml(item.url || '');
           const rankClass = rank === 1 ? 'rank-gold' : rank === 2 ? 'rank-silver' : rank === 3 ? 'rank-bronze' : '';
-          return `
-            <tr>
+              return `
+            <tr class="ranking-row" data-url="${url}">
               <td class="rank-cell ${rankClass}">${rank}</td>
-              <td class="rank-title-cell"><a href="${url}" target="_blank" rel="noreferrer">${title}</a></td>
+              <td class="rank-title-cell">${title}</td>
             </tr>
           `;
         })
@@ -157,8 +157,7 @@ function buildRankingCard(rankingItems) {
       <div class="card-meta">
         <span class="meta-pill ranking-pill">Amazonランキング</span>
       </div>
-      <h2 class="card-title ranking-card-title">本のベストセラー</h2>
-      ${tables}
+      <div class="ranking-groups-row">${tables}</div>
     </article>
   `;
 }
@@ -179,18 +178,33 @@ function renderFeed(run) {
   const normalCardsHtml = normalItems
     .map((item, index) => {
       const cardClass = `feed-card tone-${(index % 5) + 1}`;
-      const title = escapeHtml(item.title || item.summary || 'Untitled');
-      // タイトルとサマリーが同じ場合はサマリーを非表示
-      const summary = item.summary && item.summary !== item.title ? escapeHtml(item.summary) : '';
       const source = escapeHtml(item.sourceName || 'Source');
       const metric = escapeHtml(formatMetric(item));
       const published = formatDate(item.publishedAt);
       const url = escapeHtml(item.url || '');
-      // 日付が取れた場合のみ表示（「-」を表示しない）
       const publishedPill = published !== '-' ? `<span class="meta-pill">${escapeHtml(published)}</span>` : '';
 
+      // X投稿：タイトルが本文の先頭42文字なので重複表示を避け、全文のみ表示
+      if (item.sourceKind === 'x_grok') {
+        const postText = escapeHtml(item.summary || item.title || '');
+        return `
+          <article class="${cardClass}" data-url="${url}">
+            <div class="card-meta">
+              <span class="meta-pill">${source}</span>
+              <span class="meta-pill">${metric}</span>
+              ${publishedPill}
+            </div>
+            <p class="card-summary">${postText}</p>
+          </article>
+        `;
+      }
+
+      // 通常カード（ニュース・PR等）
+      const title = escapeHtml(item.title || item.summary || 'Untitled');
+      const summary = item.summary && item.summary !== item.title ? escapeHtml(item.summary) : '';
+
       return `
-        <article class="${cardClass}">
+        <article class="${cardClass}" data-url="${url}">
           <div class="card-meta">
             <span class="meta-pill">${source}</span>
             <span class="meta-pill">${metric}</span>
@@ -198,13 +212,32 @@ function renderFeed(run) {
           </div>
           <h2 class="card-title">${title}</h2>
           ${summary ? `<p class="card-summary">${summary}</p>` : ''}
-          <a class="card-link" href="${url}" target="_blank" rel="noreferrer">Open source</a>
         </article>
       `;
     })
     .join('');
 
-  feedGridEl.innerHTML = rankingCardHtml + normalCardsHtml;
+  if (normalCardsHtml && rankingCardHtml) {
+    feedGridEl.innerHTML = `<div class="feed-col-left">${normalCardsHtml}</div><div class="feed-col-right">${rankingCardHtml}</div>`;
+  } else {
+    feedGridEl.innerHTML = rankingCardHtml + normalCardsHtml;
+  }
+
+  // カード全体クリックでURLを開く
+  feedGridEl.querySelectorAll('.feed-card[data-url]').forEach((card) => {
+    card.addEventListener('click', () => {
+      const href = card.dataset.url;
+      if (href) window.open(href, '_blank', 'noreferrer');
+    });
+  });
+
+  // ランキング行全体クリックでURLを開く
+  feedGridEl.querySelectorAll('.ranking-row[data-url]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const href = row.dataset.url;
+      if (href) window.open(href, '_blank', 'noreferrer');
+    });
+  });
 }
 
 function render() {
@@ -257,3 +290,71 @@ refreshBtnEl.addEventListener('click', () => {
     notify(error.message, true);
   }
 })();
+
+// ディザリング共通ユーティリティ
+const bayerMatrix = [
+  [0, 8, 2, 10],
+  [12, 4, 14, 6],
+  [3, 11, 1, 9],
+  [15, 7, 13, 5],
+];
+function ditherThreshold(x, y) {
+  return (bayerMatrix[y % 4][x % 4] / 16) - 0.5;
+}
+
+// ページ背景のディザー波アニメーション
+(function initBgCanvas() {
+  const canvas = document.getElementById('bgCanvas');
+  if (!canvas) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const ctx = canvas.getContext('2d');
+  let width = 0;
+  let height = 0;
+  let time = 0;
+
+  function resize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+
+  function draw() {
+    ctx.clearRect(0, 0, width, height);
+
+    const gridSize = 10;
+    const cols = Math.ceil(width / gridSize);
+    const rows = Math.ceil(height / gridSize);
+    const waveCenterY = rows * 0.58;
+    const waveAmplitude = rows / 4;
+    const frequency = 0.036;
+    const speed = 0.011;
+
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const wave1 = Math.sin(x * frequency + time) * waveAmplitude;
+        const wave2 = Math.cos(x * frequency * 0.5 - time) * (waveAmplitude * 0.4);
+        const combinedWave = wave1 + wave2;
+        const distFromWave = Math.abs(y - (waveCenterY + combinedWave));
+        let intensity = Math.max(0, 1 - distFromWave / 12);
+        intensity += (Math.random() - 0.5) * 0.07;
+
+        const threshold = ditherThreshold(x, y);
+        if (intensity + threshold > 0.5) {
+          ctx.fillStyle = 'rgba(195, 162, 110, 0.18)';
+          ctx.fillRect(x * gridSize, y * gridSize, gridSize - 1, gridSize - 1);
+        }
+      }
+    }
+
+    time += speed;
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+})();
+

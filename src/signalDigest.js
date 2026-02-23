@@ -129,7 +129,11 @@ function postFromSignal(signal) {
     metricValue: Number(signal.metricValue || 0),
     sourceName: signal.sourceName,
     sourceCategory: signal.sourceCategory,
+    sourceKind: signal.sourceKind || '',
     publishedAt: toIsoOrNull(signal.publishedAt),
+    coverImageUrl: signal.coverImageUrl || null,
+    author: signal.author || '',
+    publisher: signal.publisher || '',
   };
 }
 
@@ -187,17 +191,30 @@ function buildClusters(scoredSignals, maxClusters = 5) {
 }
 
 function buildMaterials(scoredSignals, limit = 20) {
-  return scoredSignals.slice(0, limit).map((signal) => ({
-    url: signal.url,
-    title: signal.title,
-    summary: signal.summary,
-    likes: signal.metricLabel === 'likes' ? Number(signal.metricValue || 0) : 0,
-    metricLabel: signal.metricLabel,
-    metricValue: Number(signal.metricValue || 0),
-    sourceName: signal.sourceName,
-    sourceCategory: signal.sourceCategory,
-    publishedAt: toIsoOrNull(signal.publishedAt),
-  }));
+  // ランキングと非ランキングを分離：ランキングはlimit制限から除外して全件保証
+  const rankingSignals = scoredSignals.filter((s) => s.sourceCategory === 'ranking');
+  const otherSignals = scoredSignals.filter((s) => s.sourceCategory !== 'ranking');
+
+  const otherMaterials = otherSignals.slice(0, limit).map(postFromSignal);
+
+  // ランキングはソース毎に10件まで、ランク順で保証
+  const rankingBySource = new Map();
+  for (const signal of rankingSignals) {
+    const key = signal.sourceId || signal.sourceName;
+    if (!rankingBySource.has(key)) rankingBySource.set(key, []);
+    rankingBySource.get(key).push(signal);
+  }
+  const rankingMaterials = [];
+  for (const signals of rankingBySource.values()) {
+    rankingMaterials.push(
+      ...signals
+        .sort((a, b) => Number(a.metricValue || 0) - Number(b.metricValue || 0))
+        .slice(0, 10)
+        .map(postFromSignal),
+    );
+  }
+
+  return [...otherMaterials, ...rankingMaterials];
 }
 
 function buildCoverage(sourceStats, dedupedSignals, totalBeforeDedupe) {
