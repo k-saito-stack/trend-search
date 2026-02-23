@@ -190,12 +190,29 @@ function buildClusters(scoredSignals, maxClusters = 5) {
   ];
 }
 
-function buildMaterials(scoredSignals, limit = 20) {
+function buildMaterials(scoredSignals, limit = 30) {
   // ランキングと非ランキングを分離：ランキングはlimit制限から除外して全件保証
   const rankingSignals = scoredSignals.filter((s) => s.sourceCategory === 'ranking');
   const otherSignals = scoredSignals.filter((s) => s.sourceCategory !== 'ranking');
 
-  const otherMaterials = otherSignals.slice(0, limit).map(postFromSignal);
+  // Xはそのまま全件通す。その他ソースは1ソースあたり最大6件に制限してソース多様性を確保
+  const PER_SOURCE_LIMIT = 6;
+  const sourceCount = new Map();
+  const filteredOther = [];
+  for (const signal of otherSignals) {
+    if (signal.sourceKind === 'x_grok') {
+      filteredOther.push(signal);
+      continue;
+    }
+    const key = signal.sourceId || signal.sourceName || 'unknown';
+    const count = sourceCount.get(key) || 0;
+    if (count < PER_SOURCE_LIMIT) {
+      filteredOther.push(signal);
+      sourceCount.set(key, count + 1);
+    }
+  }
+
+  const otherMaterials = filteredOther.slice(0, limit).map(postFromSignal);
 
   // ランキングはソース毎に10件まで、ランク順で保証
   const rankingBySource = new Map();

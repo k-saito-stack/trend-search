@@ -112,7 +112,10 @@ function makeSignal(source, payload) {
 
 function buildXQuery(theme, sinceDate) {
   const core = String(theme.query || theme.name || '').trim();
-  return `${core} 出版 OR 書籍 OR 書店 OR 書評 OR 重版 OR PR TIMES since:${sinceDate}`;
+  // X検索は最低3日分の窓を確保（バズり始めの投稿を確実に拾うため）
+  const xSinceDate = theme.periodDays >= 3 ? sinceDate : getSinceDate(3);
+  // -同人誌 -コミケ で同人関係の投稿を検索段階から除外
+  return `${core} 出版 OR 書籍 OR 書店 OR 書評 OR 重版 OR PR TIMES -同人誌 -コミケ since:${xSinceDate}`;
 }
 
 function parseAmazonRanking(html, source, limit) {
@@ -175,7 +178,7 @@ function parseTohanRanking(html, limit) {
     const h3Match = block.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
     if (!h3Match) continue;
     const title = stripTags(h3Match[1]).trim();
-    if (!title || title.length < 3) continue;
+    if (!title || title.length < 2) continue;
 
     const key = title.toLowerCase();
     if (seen.has(key)) continue;
@@ -197,33 +200,35 @@ function parseTohanRanking(html, limit) {
 function parseHontoRanking(html, limit) {
   const results = [];
   const seen = new Set();
-  let hit;
 
-  // まず電子書籍ページ（/ebook/pd_ リンクあり）を試みる
-  const ebookPattern = /<h2[^>]+class="stHeading"[^>]*>[\s\S]*?<a[^>]+href="(https?:\/\/honto\.jp\/ebook\/pd_[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-  while ((hit = ebookPattern.exec(html)) && results.length < limit * 2) {
-    const url = hit[1].split('?')[0]; // cid等のトラッキングパラメータを除去
-    const title = stripTags(hit[2]).trim();
+  // h2.stHeading ブロックを全て取得し、各ブロックで最適なURLを選ぶ
+  // 電子書籍ページと紙書籍ページの両方に対応（if/else を使わず常に全件抽出）
+  const blockPattern = /<h2[^>]+class="stHeading"[^>]*>([\s\S]*?)<\/h2>/gi;
+  let hit;
+  while ((hit = blockPattern.exec(html)) && results.length < limit * 2) {
+    const block = hit[1];
+    const title = stripTags(block).trim();
     if (!title || title.length < 2) continue;
     const key = title.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    results.push({ url, title, summary: `${title}（hontoランキング）` });
-  }
 
-  // 電子書籍リンクが見つからない場合は実店舗・紙書籍ページとして処理
-  if (results.length === 0) {
-    const physicalPattern = /<h2[^>]+class="stHeading"[^>]*>([\s\S]*?)<\/h2>/gi;
-    while ((hit = physicalPattern.exec(html)) && results.length < limit * 2) {
-      const title = stripTags(hit[1]).trim();
-      if (!title || title.length < 2) continue;
-      const key = title.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      // 個別商品URLがないため、書名でhonto内検索URLを生成
-      const url = `https://honto.jp/netstore/search.html?search.keyword=${encodeURIComponent(title)}`;
-      results.push({ url, title, summary: `${title}（hontoランキング）` });
+    // ① /ebook/pd_ リンクを優先（電子書籍専用ページ）
+    const ebookMatch = block.match(/href="(https?:\/\/honto\.jp\/ebook\/pd_[^"]+)"/i);
+    // ② /netstore/pd_ リンク（紙書籍商品ページ）
+    const netstoreMatch = block.match(/href="(https?:\/\/honto\.jp\/netstore\/pd_[^"]+)"/i);
+
+    let url;
+    if (ebookMatch) {
+      url = ebookMatch[1].split('?')[0];
+    } else if (netstoreMatch) {
+      url = netstoreMatch[1].split('?')[0];
+    } else {
+      // 個別URLなし → 書名検索URLを生成
+      url = `https://honto.jp/netstore/search.html?search.keyword=${encodeURIComponent(title)}`;
     }
+
+    results.push({ url, title, summary: `${title}（hontoランキング）` });
   }
 
   return results.slice(0, limit).map((entry, index) => ({

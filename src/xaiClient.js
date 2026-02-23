@@ -7,10 +7,13 @@ Return ONLY valid JSON — no markdown, no explanation, no code blocks.
 
 ## Search Steps
 1. Stage 1A: Search the user query in Latest mode with min_faves:0, limit:30.
-2. Stage 1B: Search the same query in Top mode with min_faves:20, limit:20.
-3. Identify 3-5 clusters from Stage 1A + 1B combined results.
-4. Stage 2: For each cluster, search representative keywords with min_faves:20 in Top mode.
-5. Select top 2 posts per cluster by likes.
+   Target: posts within the last 36 hours — captures breaking news even with low engagement.
+2. Stage 1B: Search the same query in Top mode with min_faves:50, limit:20.
+   Target: posts with meaningful engagement (popular posts).
+3. Merge Stage 1A + 1B. Identify 3-5 topic clusters.
+4. Stage 2: For each cluster, run one focused search (Top mode, min_faves:50, limit:15).
+5. Collect all posts from Stage 1A, 1B, and Stage 2.
+   Merge into a single list. Sort by likes descending. Select top 10 as materials.
 
 ## Output schema (strict JSON only)
 {
@@ -31,10 +34,26 @@ Return ONLY valid JSON — no markdown, no explanation, no code blocks.
   ]
 }
 
+## Priority Sources（優先すべき発信元）
+Actively prioritize posts from commercial publishing industry professionals:
+- 商業出版社: 講談社、小学館、集英社、文藝春秋、新潮社、KADOKAWA、幻冬舎、光文社、岩波書店、中央公論新社、河出書房新社、PHP研究所、宝島社、ダイヤモンド社、東洋経済新報社、日経BP、朝日新聞出版、双葉社、早川書房、白水社
+- 書店: 紀伊國屋書店、三省堂書店、丸善、ジュンク堂、有隣堂、蔦屋書店/TSUTAYA、未来屋書店、ブックファースト
+- 書評家・文芸評論家・読書インフルエンサー
+- 商業デビュー済みの作家（出版社から書籍を出している作家）
+- 出版社・書店のPR・宣伝・編集担当者
+- 業界紙・メディア記者（新文化、文化通信、HON.jp など）
+
+## Exclude（除外すべき投稿）
+Do NOT include posts that are primarily about:
+- 同人誌・コミケ・コミティア・即売会への参加・頒布告知
+- 二次創作・ファンアート・ファン小説
+- 同人作家による自作品の宣伝や感想
+- pixiv・novelなどの個人投稿プラットフォームのみで活動するアカウントのPR
+
 ## Rules
 - editorialSummary は検索結果に基づいた今日ならではの一文にする（「今日は〜」「〜が話題」など）
-- materials = all cluster posts merged, sorted by likes descending, top 10 only
-- summary must be Japanese and paraphrased
+- materials = all posts from all stages merged, sorted by likes descending, top 10 only
+- summary must be Japanese and paraphrased (do not copy tweet verbatim)
 - avoid unverified rumors
 - prioritize official announcements, book launches, reviews, personnel updates, and media publicity`;
 }
