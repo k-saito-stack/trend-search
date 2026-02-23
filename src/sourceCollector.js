@@ -166,22 +166,24 @@ function parseAmazonRanking(html, source, limit) {
 function parseTohanRanking(html, limit) {
   const results = [];
   const seen = new Set();
-  // e-hon.ne.jpへのISBNリンクと<img alt="書名">のパターンを抽出
-  const pattern = /<a[^>]+href="(https?:\/\/www\.e-hon\.ne\.jp[^"]+refISBN=[^"]+)"[^>]*>[\s\S]*?<img[^>]+alt="([^"]{3,})"[^>]*>/gi;
+  // <li class="item rank-Xst/nd/rd/th"> ブロックごとにh3タイトルと最初のe-honリンクを取得
+  const itemPattern = /<li[^>]+class="item rank-[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
   let hit;
 
-  while ((hit = pattern.exec(html)) && results.length < limit * 2) {
-    const url = hit[1].trim();
-    const title = hit[2].trim();
+  while ((hit = itemPattern.exec(html)) && results.length < limit) {
+    const block = hit[1];
+    const h3Match = block.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
+    if (!h3Match) continue;
+    const title = stripTags(h3Match[1]).trim();
     if (!title || title.length < 3) continue;
-
-    // e-honロゴ画像（alt="e-hon"）や短すぎる汎用テキストを除外
-    if (/^e-?hon$/i.test(title)) continue;
 
     const key = title.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
 
+    // 最初のrefISBNリンク（カバー画像リンク）
+    const linkMatch = block.match(/href="(https?:\/\/www\.e-hon\.ne\.jp[^"]+refISBN=[^"]+)"/i);
+    const url = linkMatch ? linkMatch[1].trim() : '';
     results.push({ url, title, summary: `${title}（トーハン週間ランキング）` });
   }
 
@@ -369,6 +371,27 @@ async function collectHontoRanking(source, context) {
   );
 }
 
+async function collectRakutenRanking(source, context) {
+  const limit = Number(source.itemLimit || 10);
+  const apiUrl = `https://rdc-api-catalog-gateway-api.rakuten.co.jp/books/rank/001/hourly.json?hits=${limit}&page=1&period=0&sid=10`;
+  const text = await fetchText(apiUrl, { timeoutMs: context.timeoutMs });
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  return (data.data || []).slice(0, limit).map((item, index) =>
+    makeSignal(source, {
+      title: item.title || '',
+      summary: `${item.title || ''}（楽天ブックスランキング）`,
+      url: item.url || '',
+      metricLabel: 'rank',
+      metricValue: index + 1,
+    }),
+  );
+}
+
 async function collectYurindoRanking(source, context) {
   const html = await fetchText(source.url, {
     timeoutMs: context.timeoutMs,
@@ -493,6 +516,11 @@ async function collectSingleSource(source, context) {
         meta: {},
         durationMs: Date.now() - startedAt,
       };
+    }
+
+    if (source.kind === 'rakuten_bestseller') {
+      const items = await collectRakutenRanking(source, context);
+      return { source, status: 'ok', items, meta: {}, durationMs: Date.now() - startedAt };
     }
 
     if (source.kind === 'honto_bestseller') {

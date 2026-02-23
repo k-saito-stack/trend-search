@@ -123,21 +123,26 @@ function buildRankingCard(rankingItems, label) {
   }
   const groupEntries = Array.from(groups.entries()).map(([sourceName, items]) => ({
     sourceName,
+    isDigital: /kindle|電子書籍/i.test(sourceName),
     items: items.sort((a, b) => Number(a.metricValue || 0) - Number(b.metricValue || 0)).slice(0, 10),
   }));
 
   const maxRows = Math.max(...groupEntries.map((g) => g.items.length), 0);
 
   // colgroup: rank列は固定幅、title列は等幅で自動分配（table-layout:fixedと組み合わせ）
-  const colgroupCols = groupEntries.flatMap((_, i) => {
-    const cols = ['<col class="ranking-col-rank">', '<col class="ranking-col-title">'];
+  const colgroupCols = groupEntries.flatMap((g, i) => {
+    const cols = ['<col class="ranking-col-rank">', `<col class="ranking-col-title${g.isDigital ? ' ranking-col-digital' : ''}">`];
     if (i < groupEntries.length - 1) cols.push('<col class="ranking-col-divider">');
     return cols;
   }).join('');
 
-  // ヘッダー行
+  // ヘッダー行（Kindle列は電子書籍バッジ付き）
   const headerCells = groupEntries
-    .map((g) => `<th class="ranking-group-label" colspan="2">${escapeHtml(g.sourceName)}</th>`)
+    .map((g) => {
+      const badge = g.isDigital ? '<span class="digital-badge">電子</span>' : '';
+      const cls = g.isDigital ? 'ranking-group-label ranking-group-digital' : 'ranking-group-label';
+      return `<th class="${cls}" colspan="2">${escapeHtml(g.sourceName)}${badge}</th>`;
+    })
     .join('<th class="ranking-col-divider"></th>');
 
   // データ行：各グループを同じ<tr>に並べて行の高さを揃える
@@ -145,12 +150,13 @@ function buildRankingCard(rankingItems, label) {
     const cells = groupEntries
       .map((g) => {
         const item = g.items[i];
-        if (!item) return '<td></td><td></td>';
+        const titleCellClass = `rank-title-cell${g.isDigital ? ' rank-title-digital' : ''}`;
+        if (!item) return `<td></td><td class="${titleCellClass}"></td>`;
         const rank = Number(item.metricValue || 0);
         const title = escapeHtml(item.title || '');
         const url = escapeHtml(item.url || '');
         const rankClass = rank === 1 ? 'rank-gold' : rank === 2 ? 'rank-silver' : rank === 3 ? 'rank-bronze' : '';
-        return `<td class="rank-cell ${rankClass}">${rank}</td><td class="rank-title-cell" data-url="${url}">${title}</td>`;
+        return `<td class="rank-cell ${rankClass}">${rank}</td><td class="${titleCellClass}" data-url="${url}">${title}</td>`;
       })
       .join('<td class="ranking-col-divider"></td>');
     return `<tr class="ranking-row">${cells}</tr>`;
@@ -177,62 +183,61 @@ function renderFeed(run) {
     return;
   }
 
-  // ランキングアイテムと通常アイテムを分離
+  // ランキング / X投稿 / 記事に分類
   const rankingItems = materials.filter((item) => item.sourceCategory === 'ranking');
-  const normalItems = materials.filter((item) => item.sourceCategory !== 'ranking');
+  const xItems = materials.filter((item) => item.sourceKind === 'x_grok');
+  const articleItems = materials.filter((item) => item.sourceCategory !== 'ranking' && item.sourceKind !== 'x_grok');
 
-  // AmazonのみのカードとAmazon以外（書店・取次）のカードに分割
-  const amazonItems = rankingItems.filter((item) => item.sourceName && item.sourceName.includes('Amazon'));
-  const bookstoreItems = rankingItems.filter((item) => !item.sourceName || !item.sourceName.includes('Amazon'));
-  const rankingCardHtml = buildRankingCard(amazonItems, 'Amazonランキング') + buildRankingCard(bookstoreItems, '書店・取次ランキング');
+  // ネット書店（Amazon + 楽天）vs 書店・取次ランキングに分割
+  const netStoreItems = rankingItems.filter((item) => item.sourceName && (item.sourceName.includes('Amazon') || item.sourceName.includes('楽天')));
+  const bookstoreItems = rankingItems.filter((item) => !item.sourceName || (!item.sourceName.includes('Amazon') && !item.sourceName.includes('楽天')));
+  const rankingCardHtml = buildRankingCard(netStoreItems, 'ネット書店ランキング') + buildRankingCard(bookstoreItems, '書店・取次ランキング');
 
-  const normalCardsHtml = normalItems
-    .map((item, index) => {
-      const cardClass = `feed-card tone-${(index % 5) + 1}`;
-      const source = escapeHtml(item.sourceName || 'Source');
-      const metric = escapeHtml(formatMetric(item));
-      const published = formatDate(item.publishedAt);
-      const url = escapeHtml(item.url || '');
-      const publishedPill = published !== '-' ? `<span class="meta-pill">${escapeHtml(published)}</span>` : '';
+  // X投稿カード（左列）
+  const xCardsHtml = xItems.map((item, index) => {
+    const cardClass = `feed-card tone-${(index % 5) + 1}`;
+    const source = escapeHtml(item.sourceName || 'Source');
+    const metric = escapeHtml(formatMetric(item));
+    const url = escapeHtml(item.url || '');
+    const postText = escapeHtml(item.summary || item.title || '');
+    return `
+      <article class="${cardClass}" data-url="${url}">
+        <div class="card-meta">
+          <span class="meta-pill">${source}</span>
+          <span class="meta-pill">${metric}</span>
+        </div>
+        <p class="card-summary">${postText}</p>
+      </article>
+    `;
+  }).join('');
 
-      // X投稿：タイトルが本文の先頭42文字なので重複表示を避け、全文のみ表示
-      if (item.sourceKind === 'x_grok') {
-        const postText = escapeHtml(item.summary || item.title || '');
-        return `
-          <article class="${cardClass}" data-url="${url}">
-            <div class="card-meta">
-              <span class="meta-pill">${source}</span>
-              <span class="meta-pill">${metric}</span>
-              ${publishedPill}
-            </div>
-            <p class="card-summary">${postText}</p>
-          </article>
-        `;
-      }
+  // 記事カード（3列グリッド）
+  const articleCardsHtml = articleItems.map((item, index) => {
+    const cardClass = `feed-card tone-${(index % 5) + 1}`;
+    const source = escapeHtml(item.sourceName || 'Source');
+    const metric = escapeHtml(formatMetric(item));
+    const published = formatDate(item.publishedAt);
+    const url = escapeHtml(item.url || '');
+    const publishedPill = published !== '-' ? `<span class="meta-pill">${escapeHtml(published)}</span>` : '';
+    const title = escapeHtml(item.title || item.summary || 'Untitled');
+    const summary = item.summary && item.summary !== item.title ? escapeHtml(item.summary) : '';
+    return `
+      <article class="${cardClass}" data-url="${url}">
+        <div class="card-meta">
+          <span class="meta-pill">${source}</span>
+          <span class="meta-pill">${metric}</span>
+          ${publishedPill}
+        </div>
+        <h2 class="card-title">${title}</h2>
+        ${summary ? `<p class="card-summary">${summary}</p>` : ''}
+      </article>
+    `;
+  }).join('');
 
-      // 通常カード（ニュース・PR等）
-      const title = escapeHtml(item.title || item.summary || 'Untitled');
-      const summary = item.summary && item.summary !== item.title ? escapeHtml(item.summary) : '';
-
-      return `
-        <article class="${cardClass}" data-url="${url}">
-          <div class="card-meta">
-            <span class="meta-pill">${source}</span>
-            <span class="meta-pill">${metric}</span>
-            ${publishedPill}
-          </div>
-          <h2 class="card-title">${title}</h2>
-          ${summary ? `<p class="card-summary">${summary}</p>` : ''}
-        </article>
-      `;
-    })
-    .join('');
-
-  if (normalCardsHtml && rankingCardHtml) {
-    feedGridEl.innerHTML = `<div class="feed-col-left">${normalCardsHtml}</div><div class="feed-col-right">${rankingCardHtml}</div>`;
-  } else {
-    feedGridEl.innerHTML = rankingCardHtml + normalCardsHtml;
-  }
+  const xColHtml = xCardsHtml ? `<div class="feed-col-x">${xCardsHtml}</div>` : '';
+  const articlesColHtml = articleCardsHtml ? `<div class="feed-col-articles">${articleCardsHtml}</div>` : '';
+  const rankingsColHtml = rankingCardHtml ? `<div class="feed-col-right">${rankingCardHtml}</div>` : '';
+  feedGridEl.innerHTML = xColHtml + articlesColHtml + rankingsColHtml;
 
   // カード全体クリックでURLを開く
   feedGridEl.querySelectorAll('.feed-card[data-url]').forEach((card) => {

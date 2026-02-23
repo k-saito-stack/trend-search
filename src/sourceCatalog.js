@@ -150,6 +150,7 @@ const SOURCE_CATALOG = [
     itemLimit: 8,
     queryTemplate: '{theme} 受賞 OR ランキング OR ベストセラー',
   },
+  // ネット書店ランキング：Amazon本 → 楽天（真ん中） → Kindle の列順
   {
     id: 'ranking_amazon_books',
     kind: 'amazon_bestseller',
@@ -161,6 +162,16 @@ const SOURCE_CATALOG = [
     url: 'https://www.amazon.co.jp/gp/bestsellers/books',
   },
   {
+    id: 'ranking_rakuten',
+    kind: 'rakuten_bestseller',
+    name: '楽天ブックスランキング',
+    category: 'ranking',
+    costTier: 'free',
+    priority: 4,
+    itemLimit: 10,
+    url: 'https://books.rakuten.co.jp/ranking/hourly/001/',
+  },
+  {
     id: 'ranking_amazon_kindle',
     kind: 'amazon_bestseller',
     name: 'Amazonランキング / Kindle',
@@ -170,16 +181,7 @@ const SOURCE_CATALOG = [
     itemLimit: 15,
     url: 'https://www.amazon.co.jp/gp/bestsellers/digital-text',
   },
-  {
-    id: 'ranking_tohan_weekly',
-    kind: 'tohan_bestseller',
-    name: 'トーハン週間 / 総合',
-    category: 'ranking',
-    costTier: 'free',
-    priority: 4,
-    itemLimit: 10,
-    url: 'https://www.tohan.jp/bestsellers/',
-  },
+  // 書店・取次ランキング：丸善 → ジュンク堂 → 有隣堂 → トーハン（一番右）の列順
   {
     id: 'ranking_maruzen',
     kind: 'honto_bestseller',
@@ -211,6 +213,16 @@ const SOURCE_CATALOG = [
     url: 'https://www.yurindo.co.jp/ranking/',
   },
   {
+    id: 'ranking_tohan_weekly',
+    kind: 'tohan_bestseller',
+    name: 'トーハン週間 / 総合',
+    category: 'ranking',
+    costTier: 'free',
+    priority: 4,
+    itemLimit: 10,
+    url: 'https://www.tohan.jp/bestsellers/',
+  },
+  {
     id: 'hatenabookmark_books',
     kind: 'rss_direct',
     name: 'はてブ / 本',
@@ -220,26 +232,9 @@ const SOURCE_CATALOG = [
     itemLimit: 8,
     url: 'https://b.hatena.ne.jp/q/%E8%AA%AD%E6%9B%B8?mode=rss&sort=recent&users=3',
   },
-  {
-    id: 'news_bunshun_online',
-    kind: 'rss_direct',
-    name: '文藝春秋オンライン',
-    category: 'industry_news',
-    costTier: 'free',
-    priority: 3,
-    itemLimit: 6,
-    url: 'https://bunshun.jp/list/feed/rss',
-  },
-  {
-    id: 'news_gendai_media',
-    kind: 'google_news',
-    name: 'Google News / 現代ビジネス',
-    category: 'industry_news',
-    costTier: 'free',
-    priority: 3,
-    itemLimit: 6,
-    queryTemplate: '現代ビジネス 講談社 出版 OR 書籍 OR 新刊',
-  },
+  // 一時無効化（必要に応じてコメントを外す）
+  // { id: 'news_bunshun_online', kind: 'rss_direct', name: '文藝春秋オンライン', category: 'industry_news', costTier: 'free', priority: 3, itemLimit: 6, url: 'https://bunshun.jp/list/feed/rss' },
+  // { id: 'news_gendai_media', kind: 'google_news', name: 'Google News / 現代ビジネス', category: 'industry_news', costTier: 'free', priority: 3, itemLimit: 6, queryTemplate: '現代ビジネス 講談社 出版 OR 書籍 OR 新刊' },
   {
     id: 'news_shinbunka',
     kind: 'rss_direct',
