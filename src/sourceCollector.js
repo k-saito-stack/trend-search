@@ -175,6 +175,9 @@ function parseTohanRanking(html, limit) {
     const title = hit[2].trim();
     if (!title || title.length < 3) continue;
 
+    // e-honロゴ画像（alt="e-hon"）や短すぎる汎用テキストを除外
+    if (/^e-?hon$/i.test(title)) continue;
+
     const key = title.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);

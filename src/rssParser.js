@@ -6,24 +6,26 @@ function stripCdata(value) {
 
 function decodeHtmlEntities(text) {
   return String(text || '')
+    // 16進数文字参照 &#x300E; → 「
+    .replace(/&#x([0-9a-fA-F]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    // 10進数文字参照 &#12354; → あ
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
     .replaceAll('&amp;', '&')
     .replaceAll('&lt;', '<')
     .replaceAll('&gt;', '>')
     .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', "'")
-    .replaceAll('&nbsp;', ' ')
-    .replaceAll('&#x2F;', '/');
+    .replaceAll('&nbsp;', ' ');
 }
 
 function stripTags(text) {
-  return decodeHtmlEntities(
-    String(text || '')
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim(),
-  );
+  // 先にエンティティをデコードしてから（&lt;a href=...&gt; → <a href=...>）タグを除去する
+  const decoded = decodeHtmlEntities(String(text || ''));
+  return decoded
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function findTagValue(block, tagName) {
