@@ -437,6 +437,45 @@ async function collectYurindoRanking(source, context) {
   );
 }
 
+function parseKinseriDeals(html, limit) {
+  const results = [];
+  const seen = new Set();
+  // <li> 内の <a href="https://www.amazon.co.jp/dp/ASIN...">タイトル</a> 価格円
+  const pattern = /<li[^>]*>\s*<a[^>]+href="(https?:\/\/www\.amazon\.co\.jp\/dp\/[^"]+)"[^>]*>([\s\S]*?)<\/a>\s*([\d,]+)円/gi;
+  let hit;
+  while ((hit = pattern.exec(html)) && results.length < limit * 2) {
+    const url = hit[1].trim();
+    const title = stripTags(hit[2]).trim();
+    const price = hit[3];
+    if (!title || title.length < 2) continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    results.push({
+      title,
+      url,
+      summary: `${title}（${price}円）`,
+    });
+  }
+  return results.slice(0, limit);
+}
+
+async function collectKinseriDeals(source, context) {
+  const html = await fetchText(source.url, {
+    timeoutMs: context.timeoutMs,
+    headers: { 'Accept-Language': 'ja,en-US;q=0.9' },
+  });
+  const entries = parseKinseriDeals(html, Number(source.itemLimit || 20));
+  return entries.map((entry) =>
+    makeSignal(source, {
+      title: entry.title,
+      summary: entry.summary,
+      url: entry.url,
+      metricLabel: '',
+      metricValue: 0,
+    }),
+  );
+}
+
 async function collectXGrok(source, context) {
   if (!context.apiKey) {
     return {
@@ -569,6 +608,11 @@ async function collectSingleSource(source, context) {
 
     if (source.kind === 'yahoo_follow') {
       const items = await collectYahooFollow(source, context);
+      return { source, status: 'ok', items, meta: {}, durationMs: Date.now() - startedAt };
+    }
+
+    if (source.kind === 'kinseri_deals') {
+      const items = await collectKinseriDeals(source, context);
       return { source, status: 'ok', items, meta: {}, durationMs: Date.now() - startedAt };
     }
 
