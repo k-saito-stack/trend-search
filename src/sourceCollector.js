@@ -440,8 +440,8 @@ async function collectYurindoRanking(source, context) {
 function parseKinseriDeals(html, limit) {
   const results = [];
   const seen = new Set();
-  // <li> 内の <a href="https://www.amazon.co.jp/dp/ASIN...">タイトル</a> 価格円
-  const pattern = /<li[^>]*>\s*<a[^>]+href="(https?:\/\/www\.amazon\.co\.jp\/dp\/[^"]+)"[^>]*>([\s\S]*?)<\/a>\s*([\d,]+)円/gi;
+  // <li> 内の <a href="...dp/ASIN...">タイトル</a> <span>価格円</span>
+  const pattern = /<li[^>]*>[\s\S]*?<a[^>]+href="(https?:\/\/www\.amazon\.co\.jp\/dp\/[^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?([\d,]+)円/gi;
   let hit;
   while ((hit = pattern.exec(html)) && results.length < limit * 2) {
     const url = hit[1].trim();
