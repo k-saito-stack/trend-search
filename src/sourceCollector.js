@@ -14,14 +14,6 @@ function truncate(text, max = 180) {
   return `${clean.slice(0, max - 1)}…`;
 }
 
-function toAbsoluteUrl(baseUrl, href) {
-  try {
-    return new URL(String(href || ''), baseUrl).toString();
-  } catch {
-    return String(href || '').trim();
-  }
-}
-
 function normalizeUrl(rawUrl) {
   const fallback = String(rawUrl || '').trim();
   if (!fallback) return '';
@@ -160,54 +152,6 @@ function buildXQuery(theme, sinceDate) {
   // 7日分の窓でバズった投稿を確実に捕捉（Top モードで人気順に取得）
   const xSinceDate = getSinceDate(7);
   return `出版社 OR 書評 OR 新刊 OR ベストセラー OR 重版 -同人誌 -コミケ since:${xSinceDate}`;
-}
-
-function parseAmazonRanking(html, source, limit) {
-  const results = [];
-  const seen = new Set();
-  const pattern = /<a[^>]+href="([^"]*(?:\/dp\/|\/gp\/product\/)[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-  let hit;
-
-  while ((hit = pattern.exec(html)) && results.length < limit * 3) {
-    const url = toAbsoluteUrl(source.url, hit[1]);
-    const body = hit[2];
-    // 複数スペースを1つに正規化してから使う（価格フィルタを確実にするため）
-    const bodyText = stripTags(body).replace(/\s+/g, ' ').trim();
-    const altMatch = body.match(/alt="([^"]+)"/i);
-    const altText = altMatch ? stripTags(altMatch[1]).replace(/\s+/g, ' ').trim() : '';
-    const title = truncate(bodyText.length >= 6 ? bodyText : altText, 120);
-
-    if (!title) continue;
-    if (/Amazon\.co\.jp|カート|ほしい物リスト|ポイント/i.test(title)) continue;
-    // 非書籍アイテム・クレジットカード等を除外
-    if (/マスターカード|クレジットカード|ギフト券|Unlimited|プライム会員|Echo|Kindle端末|Fire\s*(?:TV|タブレット)|Alexa/i.test(title)) continue;
-    // 価格のみのテキストを除外（¥1,980 や ¥ 1,980 など）
-    if (/^[\s¥￥\d,，.]+円?$/.test(title)) continue;
-    if (title.length < 5) continue;
-
-    const key = `${url}__${title}`.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    // Amazon CDN画像URLを抽出してカバー画像として使用
-    const imgMatch = body.match(/src="(https?:\/\/m\.media-amazon\.com\/images\/I\/[^"]+)"/i);
-    const coverImageUrl = imgMatch
-      ? imgMatch[1].replace(/\._[A-Z_]{2,20}_(?=\.)/, '._SL200_')
-      : null;
-
-    results.push({
-      url,
-      title,
-      summary: `${title}（Amazonランキング監視）`,
-      coverImageUrl,
-    });
-  }
-
-  return results.slice(0, limit).map((entry, index) => ({
-    ...entry,
-    metricLabel: 'rank',
-    metricValue: index + 1,
-  }));
 }
 
 function parseTohanRanking(html, limit) {
@@ -402,25 +346,23 @@ async function collectDirectRss(source, context) {
     );
 }
 
-async function collectAmazonBestseller(source, context) {
-  const html = await fetchText(source.url, {
-    timeoutMs: context.timeoutMs,
-    headers: {
-      'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
-    },
-  });
+async function collectRssRanking(source, context) {
+  const xml = await fetchText(source.url, { timeoutMs: context.timeoutMs });
+  const entries = parseRssFeed(xml);
 
-  const entries = parseAmazonRanking(html, source, Number(source.itemLimit || 15));
-  return entries.map((entry) =>
-    makeSignal(source, {
-      title: entry.title,
-      summary: entry.summary,
-      url: entry.url,
-      metricLabel: entry.metricLabel,
-      metricValue: entry.metricValue,
-      coverImageUrl: entry.coverImageUrl,
-    }),
-  );
+  return entries
+    .filter((entry) => entry.link)
+    .slice(0, Number(source.itemLimit || 10))
+    .map((entry, index) =>
+      makeSignal(source, {
+        title: entry.title,
+        summary: entry.summary || entry.title,
+        url: entry.link,
+        publishedAt: entry.publishedAt || null,
+        metricLabel: 'rank',
+        metricValue: index + 1,
+      }),
+    );
 }
 
 async function collectTohanRanking(source, context) {
@@ -491,48 +433,6 @@ async function collectYurindoRanking(source, context) {
       url: entry.url,
       metricLabel: entry.metricLabel,
       metricValue: entry.metricValue,
-    }),
-  );
-}
-
-function parseKindleDailyDeals(html, limit) {
-  const results = [];
-  const seen = new Set();
-  // <a title="書籍タイトル" href="/gp/product/BXXXXXXXXX..."> の形式で埋め込まれている
-  const blockPattern = /<a([^>]+href="\/(?:gp\/product|dp)\/(B[A-Z0-9]{9,10})[^"]*"[^>]*)>/gi;
-  let hit;
-  while ((hit = blockPattern.exec(html)) && results.length < limit * 2) {
-    const attrs = hit[1];
-    const asin = hit[2];
-    const titleMatch = attrs.match(/title="([^"]+)"/i);
-    if (!titleMatch) continue;
-    const title = titleMatch[1].trim();
-    if (!title || title.length < 2) continue;
-    if (seen.has(asin)) continue;
-    seen.add(asin);
-    results.push({
-      title,
-      url: `https://www.amazon.co.jp/dp/${asin}`,
-      summary: title,
-    });
-  }
-  return results.slice(0, limit);
-}
-
-async function collectKindleDailyDeals(source, context) {
-  const html = await fetchText(source.url, {
-    timeoutMs: context.timeoutMs,
-    headers: { 'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8' },
-  });
-  const limit = Number(source.itemLimit || 20);
-  const entries = parseKindleDailyDeals(html, limit);
-  return entries.map((entry) =>
-    makeSignal(source, {
-      title: entry.title,
-      summary: entry.summary,
-      url: entry.url,
-      metricLabel: '',
-      metricValue: 0,
     }),
   );
 }
@@ -613,17 +513,6 @@ async function collectSingleSource(source, context) {
       };
     }
 
-    if (source.kind === 'amazon_bestseller') {
-      const items = await collectAmazonBestseller(source, context);
-      return {
-        source,
-        status: 'ok',
-        items,
-        meta: {},
-        durationMs: Date.now() - startedAt,
-      };
-    }
-
     if (source.kind === 'rss_direct') {
       const items = await collectDirectRss(source, context);
       return {
@@ -633,6 +522,11 @@ async function collectSingleSource(source, context) {
         meta: {},
         durationMs: Date.now() - startedAt,
       };
+    }
+
+    if (source.kind === 'rss_ranking') {
+      const items = await collectRssRanking(source, context);
+      return { source, status: 'ok', items, meta: {}, durationMs: Date.now() - startedAt };
     }
 
     if (source.kind === 'tohan_bestseller') {
@@ -675,11 +569,6 @@ async function collectSingleSource(source, context) {
 
     if (source.kind === 'yahoo_follow') {
       const items = await collectYahooFollow(source, context);
-      return { source, status: 'ok', items, meta: {}, durationMs: Date.now() - startedAt };
-    }
-
-    if (source.kind === 'kindle_deals') {
-      const items = await collectKindleDailyDeals(source, context);
       return { source, status: 'ok', items, meta: {}, durationMs: Date.now() - startedAt };
     }
 

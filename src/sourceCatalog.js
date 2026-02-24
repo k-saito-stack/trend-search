@@ -153,13 +153,13 @@ const SOURCE_CATALOG = [
   // ネット書店ランキング：Amazon本 → 楽天（真ん中） → Kindle の列順
   {
     id: 'ranking_amazon_books',
-    kind: 'amazon_bestseller',
+    kind: 'rss_ranking',
     name: 'Amazonランキング / 本',
     category: 'ranking',
     costTier: 'free',
     priority: 4,
-    itemLimit: 15,
-    url: 'https://www.amazon.co.jp/gp/bestsellers/books',
+    itemLimit: 10,
+    url: 'https://livdir.com/am-tb/amaranrss/get/?url=https://www.amazon.co.jp/gp/bestsellers/books/',
   },
   {
     id: 'ranking_rakuten',
@@ -173,13 +173,13 @@ const SOURCE_CATALOG = [
   },
   {
     id: 'ranking_amazon_kindle',
-    kind: 'amazon_bestseller',
+    kind: 'rss_ranking',
     name: 'Amazonランキング / Kindle',
     category: 'ranking',
     costTier: 'free',
     priority: 4,
-    itemLimit: 15,
-    url: 'https://www.amazon.co.jp/gp/bestsellers/digital-text',
+    itemLimit: 10,
+    url: 'https://livdir.com/am-tb/amaranrss/get/?url=https://www.amazon.co.jp/gp/bestsellers/digital-text/2275256051/',
   },
   // 書店・取次ランキング：丸善 → ジュンク堂 → 有隣堂 → トーハン（一番右）の列順
   {
@@ -269,13 +269,13 @@ const SOURCE_CATALOG = [
   // Kindle日替わりセール
   {
     id: 'kindle_daily_deals',
-    kind: 'kindle_deals',
+    kind: 'rss_direct',
     name: 'Kindle日替わりセール',
     category: 'deals',
     costTier: 'free',
     priority: 3,
     itemLimit: 20,
-    url: 'https://www.amazon.co.jp/kindle-dbs/browse/?_encoding=UTF8&metadata=storeType%3Debooks&widgetId=ebooks-deals-storefront_KindleDailyDealsStrategy&title=Kindle%E6%97%A5%E6%9B%BF%E3%82%8F%E3%82%8A%E3%82%BB%E3%83%BC%E3%83%AB&sourceType=recs&tag=137439-4-22',
+    url: 'https://yapi.ta2o.net/kndlsl/index.rss',
   },
 ];
 
