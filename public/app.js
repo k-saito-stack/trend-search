@@ -493,15 +493,52 @@ function ditherThreshold(x, y) {
 }
 
 // ページ背景のディザー波アニメーション
+function createOneOverFNoise() {
+  const bands = [
+    { cutoffHz: 0.9, weight: 0.32, state: 0 },
+    { cutoffHz: 0.45, weight: 0.27, state: 0 },
+    { cutoffHz: 0.22, weight: 0.21, state: 0 },
+    { cutoffHz: 0.11, weight: 0.14, state: 0 },
+    { cutoffHz: 0.055, weight: 0.06, state: 0 },
+  ];
+  let normalizer = 1;
+
+  return {
+    sample(dtSec) {
+      let total = 0;
+      let weightSum = 0;
+
+      for (const band of bands) {
+        const alpha = 1 - Math.exp(-2 * Math.PI * band.cutoffHz * dtSec);
+        const white = Math.random() * 2 - 1;
+        band.state += alpha * (white - band.state);
+        total += band.state * band.weight;
+        weightSum += band.weight;
+      }
+
+      const combined = total / Math.max(weightSum, 0.000001);
+      normalizer = Math.max(normalizer * 0.995, Math.abs(combined), 0.35);
+      return Math.max(-1, Math.min(1, combined / normalizer));
+    },
+  };
+}
+
+// Canvas background animation
 (function initBgCanvas() {
   const canvas = document.getElementById('bgCanvas');
   if (!canvas) return;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
   const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
   let width = 0;
   let height = 0;
-  let time = 0;
+  const wavePeriodSec = 10;
+  const waveAngularSpeed = (Math.PI * 2) / wavePeriodSec;
+  const flicker = createOneOverFNoise();
+  let phase = 0;
+  let lastTs = performance.now();
 
   function resize() {
     width = window.innerWidth;
@@ -513,25 +550,35 @@ function ditherThreshold(x, y) {
   window.addEventListener('resize', resize);
   resize();
 
-  function draw() {
+  function draw(ts) {
+    const dtSec = Math.min(0.05, Math.max(1 / 240, (ts - lastTs) / 1000));
+    lastTs = ts;
+    phase += waveAngularSpeed * dtSec;
+
+    const flickerValue = flicker.sample(dtSec);
+    const amplitudeScale = 1 + flickerValue * 0.18;
+    const intensityOffset = flickerValue * 0.045;
+
     ctx.clearRect(0, 0, width, height);
 
     const gridSize = 10;
     const cols = Math.ceil(width / gridSize);
     const rows = Math.ceil(height / gridSize);
     const waveCenterY = rows * 0.58;
-    const waveAmplitude = rows / 4;
+    const baseAmplitude = rows / 4;
+    const waveAmplitude = baseAmplitude * amplitudeScale;
     const frequency = 0.036;
-    const speed = 0.011;
+    const secondaryPhase = phase * 0.86;
 
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
-        const wave1 = Math.sin(x * frequency + time) * waveAmplitude;
-        const wave2 = Math.cos(x * frequency * 0.5 - time) * (waveAmplitude * 0.4);
+        const wave1 = Math.sin(x * frequency + phase) * waveAmplitude;
+        const wave2 = Math.cos(x * frequency * 0.5 - secondaryPhase) * (baseAmplitude * 0.42 * amplitudeScale);
         const combinedWave = wave1 + wave2;
         const distFromWave = Math.abs(y - (waveCenterY + combinedWave));
         let intensity = Math.max(0, 1 - distFromWave / 12);
-        intensity += (Math.random() - 0.5) * 0.07;
+        const localDrift = Math.sin((x * 0.31 + y * 0.17) + phase * 0.35) * 0.035;
+        intensity += localDrift + intensityOffset;
 
         const threshold = ditherThreshold(x, y);
         if (intensity + threshold > 0.5) {
@@ -541,9 +588,8 @@ function ditherThreshold(x, y) {
       }
     }
 
-    time += speed;
     requestAnimationFrame(draw);
   }
 
-  draw();
+  requestAnimationFrame(draw);
 })();
