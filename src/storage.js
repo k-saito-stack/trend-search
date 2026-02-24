@@ -69,7 +69,7 @@ function writeJson(filePath, data) {
   try {
     fd = fs.openSync(tempPath, 'w', 0o600);
     fs.writeFileSync(fd, text, 'utf8');
-    fs.fsyncSync(fd);
+    safeFsync(fd);
     fs.closeSync(fd);
     fd = null;
 
@@ -78,7 +78,7 @@ function writeJson(filePath, data) {
     // rename の耐久性を高めるため、親ディレクトリも fsync する
     const dirFd = fs.openSync(dir, 'r');
     try {
-      fs.fsyncSync(dirFd);
+      safeFsync(dirFd);
     } finally {
       fs.closeSync(dirFd);
     }
@@ -99,6 +99,19 @@ function writeJson(filePath, data) {
       }
     }
 
+    throw error;
+  }
+}
+
+function safeFsync(fd) {
+  try {
+    fs.fsyncSync(fd);
+  } catch (error) {
+    const code = String(error && error.code ? error.code : '');
+    // Some Windows/filesystem combinations do not permit fsync.
+    if (code === 'EPERM' || code === 'EINVAL' || code === 'ENOSYS' || code === 'EBADF' || code === 'EROFS') {
+      return;
+    }
     throw error;
   }
 }
