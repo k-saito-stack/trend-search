@@ -1,61 +1,45 @@
 const { ensureArray } = require('./utils');
 
 function buildSystemPrompt() {
-  return `You are an X (Twitter) analyst focused on Japanese publishing and adjacent industries.
-Use the x_search tool to research posts, following the steps below.
+  return `You are a Japanese publishing industry analyst. Use the x_search tool to find popular X posts.
 Return ONLY valid JSON — no markdown, no explanation, no code blocks.
 
-## Search Steps
-1. Stage 1A: Search the user query in Latest mode with min_faves:0, limit:30.
-   Target: posts within the last 36 hours — captures breaking news even with low engagement.
-2. Stage 1B: Search the same query in Top mode with min_faves:50, limit:20.
-   Target: posts with meaningful engagement (popular posts).
-3. Merge Stage 1A + 1B. Identify 3-5 topic clusters.
-4. Stage 2: For each cluster, run one focused search (Top mode, min_faves:50, limit:15).
-5. Collect all posts from Stage 1A, 1B, and Stage 2.
-   Merge into a single list. Sort by likes descending. Select top 10 as materials.
+## Search Instructions
+1. Search the user's query in Top mode with min_faves:10, limit:30. Find the most-liked posts.
+2. If fewer than 5 posts are found, also search in Latest mode with min_faves:5, limit:20.
+3. Merge results. Sort by likes descending. Select top 10 as materials.
 
 ## Output schema (strict JSON only)
 {
-  "editorialSummary": "今日の出版業界を30字程度でキャッチーに表現した日本語の一文。書籍名・著者名・具体的なトピックを盛り込む。",
+  "editorialSummary": "30字以内の日本語一文（書籍名・著者名・具体的トピックを盛り込む）",
   "clusters": [
     {
-      "name": "クラスター名（日本語、10字以内）",
+      "name": "クラスター名（10字以内）",
       "keyphrases": ["フレーズ1", "フレーズ2", "フレーズ3"],
       "posts": [
-        {"url": "https://x.com/i/status/...", "summary": "1-2行の日本語要約", "likes": 0},
         {"url": "https://x.com/i/status/...", "summary": "1-2行の日本語要約", "likes": 0}
       ]
     }
   ],
-  "themes": ["テーマ1", "テーマ2", "テーマ3", "テーマ4", "テーマ5"],
+  "themes": ["テーマ1", "テーマ2", "テーマ3"],
   "materials": [
     {"url": "https://x.com/i/status/...", "summary": "1-2行の日本語要約", "likes": 0}
   ]
 }
 
 ## Priority Sources（優先すべき発信元）
-Actively prioritize posts from commercial publishing industry professionals:
-- 商業出版社: 講談社、小学館、集英社、文藝春秋、新潮社、KADOKAWA、幻冬舎、光文社、岩波書店、中央公論新社、河出書房新社、PHP研究所、宝島社、ダイヤモンド社、東洋経済新報社、日経BP、朝日新聞出版、双葉社、早川書房、白水社
-- 書店: 紀伊國屋書店、三省堂書店、丸善、ジュンク堂、有隣堂、蔦屋書店/TSUTAYA、未来屋書店、ブックファースト
-- 書評家・文芸評論家・読書インフルエンサー
-- 商業デビュー済みの作家（出版社から書籍を出している作家）
-- 出版社・書店のPR・宣伝・編集担当者
-- 業界紙・メディア記者（新文化、文化通信、HON.jp など）
+- 商業出版社: 講談社、小学館、集英社、文藝春秋、新潮社、KADOKAWA、幻冬舎、光文社、岩波書店、中央公論新社、河出書房新社、宝島社、ダイヤモンド社、東洋経済新報社、日経BP、朝日新聞出版、早川書房
+- 書店: 紀伊國屋書店、三省堂書店、丸善、ジュンク堂、有隣堂、蔦屋書店/TSUTAYA
+- 書評家・著者・編集者・出版PR担当者・業界メディア（新文化、文化通信、HON.jp）
 
-## Exclude（除外すべき投稿）
-Do NOT include posts that are primarily about:
-- 同人誌・コミケ・コミティア・即売会への参加・頒布告知
-- 二次創作・ファンアート・ファン小説
-- 同人作家による自作品の宣伝や感想
-- pixiv・novelなどの個人投稿プラットフォームのみで活動するアカウントのPR
+## Exclude（除外）
+- 同人誌・コミケ・コミティア・二次創作・ファンアート・ファン小説
+- pixiv・novelなどの個人投稿プラットフォームのみで活動するアカウント
 
 ## Rules
-- editorialSummary は検索結果に基づいた今日ならではの一文にする（「今日は〜」「〜が話題」など）
-- materials = all posts from all stages merged, sorted by likes descending, top 10 only
-- summary must be Japanese and paraphrased (do not copy tweet verbatim)
-- avoid unverified rumors
-- prioritize official announcements, book launches, reviews, personnel updates, and media publicity`;
+- materials: いいね数降順、上位10件のみ
+- summary は日本語で要約（投稿をそのままコピーしない）
+- 結果が0件でも必ず上記のJSON構造を返す（空配列可）`;
 }
 
 async function callResponsesApi({ apiKey, model, queryWithSince }) {
@@ -91,6 +75,7 @@ async function callResponsesApi({ apiKey, model, queryWithSince }) {
 }
 
 function findAssistantText(responseJson) {
+  // トップレベルの output_text（最も確実）
   if (typeof responseJson.output_text === 'string' && responseJson.output_text.trim()) {
     return responseJson.output_text;
   }
@@ -98,11 +83,19 @@ function findAssistantText(responseJson) {
   const output = ensureArray(responseJson.output);
 
   for (const item of output) {
-    if (item && item.role === 'assistant' && Array.isArray(item.content)) {
-      for (const contentItem of item.content) {
-        if (contentItem && contentItem.type === 'output_text' && typeof contentItem.text === 'string') {
-          return contentItem.text;
-        }
+    if (!item || !Array.isArray(item.content)) continue;
+
+    // 通常モデル: role=assistant
+    // 推論モデル（grok-*-reasoning）: type=message で role がない場合もある
+    const isAssistantMsg = item.role === 'assistant' || item.type === 'message';
+    if (!isAssistantMsg) continue;
+
+    for (const contentItem of item.content) {
+      if (!contentItem || typeof contentItem.text !== 'string') continue;
+      // output_text（標準）と text（推論モデルの代替フォーマット）の両方に対応
+      if (contentItem.type === 'output_text' || contentItem.type === 'text') {
+        const text = contentItem.text.trim();
+        if (text) return text;
       }
     }
   }

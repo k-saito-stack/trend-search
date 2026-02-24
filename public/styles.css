@@ -209,14 +209,28 @@ body {
 }
 
 .deals-card {
-  background: linear-gradient(160deg, #edf9fd 0%, #fffdf8 74%);
-  border-color: rgba(63, 154, 183, 0.35);
+  background: linear-gradient(160deg, #fff5df 0%, #fffdf8 74%);
+  border-color: rgba(210, 160, 60, 0.35);
+}
+
+.ranking-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(160, 110, 40, 0.1),
+    0 0 0 1px rgba(245, 191, 69, 0.3),
+    0 0 20px rgba(245, 191, 69, 0.12);
+}
+
+.deals-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(160, 110, 40, 0.1),
+    0 0 0 1px rgba(210, 148, 50, 0.3),
+    0 0 20px rgba(210, 148, 50, 0.14);
 }
 
 .deals-pill {
-  background: rgba(63, 154, 183, 0.15) !important;
-  border-color: rgba(63, 154, 183, 0.4) !important;
-  color: #245f72 !important;
+  background: rgba(210, 148, 50, 0.15) !important;
+  border-color: rgba(195, 130, 45, 0.4) !important;
+  color: #7e5210 !important;
 }
 
 .deals-table {
@@ -235,7 +249,7 @@ body {
 }
 
 .deals-title-cell:hover {
-  background: rgba(63, 154, 183, 0.1);
+  background: rgba(210, 148, 50, 0.14);
 }
 
 .deals-table tbody tr:last-child .deals-title-cell {
@@ -249,7 +263,7 @@ body {
   border-radius: 18px;
   padding: 14px;
   background: var(--paper);
-  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, opacity 0.5s ease;
 }
 
 .feed-card[data-url] {
@@ -258,7 +272,9 @@ body {
 
 .feed-card[data-url]:hover {
   transform: translateY(-4px);
-  box-shadow: 0 16px 40px rgba(160, 110, 40, 0.13);
+  box-shadow: 0 16px 40px rgba(160, 110, 40, 0.13),
+    0 0 0 1px rgba(243, 119, 84, 0.3),
+    0 0 24px rgba(243, 119, 84, 0.15);
   border-color: rgba(195, 162, 110, 0.7);
 }
 
@@ -396,8 +412,8 @@ body {
 
 /* 電子書籍列（Kindle等）の視覚的区別 */
 .ranking-group-digital {
-  color: #245f72 !important;
-  background: rgba(63, 154, 183, 0.11);
+  color: #7e5210 !important;
+  background: rgba(210, 148, 50, 0.12);
   border-radius: 4px 4px 0 0;
 }
 
@@ -405,20 +421,20 @@ body {
   display: inline-block;
   margin-left: 5px;
   font-size: 0.58rem;
-  border: 1px dashed rgba(63, 154, 183, 0.65);
+  border: 1px dashed rgba(195, 135, 45, 0.55);
   border-radius: 3px;
   padding: 1px 4px;
-  color: #245f72;
+  color: #7e5210;
   vertical-align: middle;
   letter-spacing: 0.04em;
 }
 
 .rank-title-digital {
-  background: rgba(63, 154, 183, 0.07);
+  background: rgba(210, 148, 50, 0.07);
 }
 
 .rank-cell-digital {
-  background: rgba(63, 154, 183, 0.07);
+  background: rgba(210, 148, 50, 0.07);
 }
 
 .rank-title-cell[data-url],
@@ -439,7 +455,7 @@ td:has(+ .rank-title-cell[data-url]:hover).rank-cell {
 .rank-cell-digital[data-url]:hover + .rank-title-digital,
 .rank-title-digital[data-url]:hover,
 td:has(+ .rank-title-digital[data-url]:hover).rank-cell-digital {
-  background: rgba(63, 154, 183, 0.22);
+  background: rgba(210, 148, 50, 0.20);
 }
 
 .rank-cell {
@@ -524,6 +540,89 @@ a:focus-visible {
 @media (max-width: 700px) {
   .hero-summary {
     font-size: clamp(1.7rem, 9vw, 2.7rem);
+  }
+}
+
+/* ===== プログレスバー ===== */
+.progress-bar {
+  position: fixed;
+  top: 0;
+  left: -30%;
+  height: 3px;
+  width: 30%;
+  background: linear-gradient(90deg, var(--accent-coral), var(--accent-sun));
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.progress-bar.running {
+  opacity: 1;
+  animation: progressFlow 1.6s ease-in-out infinite;
+}
+
+@keyframes progressFlow {
+  0%   { left: -30%; }
+  100% { left: 110%; }
+}
+
+/* ===== スクロールフェードイン ===== */
+.feed-card {
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+.feed-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ===== Skeleton Loading ===== */
+.skeleton-card {
+  border-radius: 18px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 14px;
+  overflow: hidden;
+  min-height: 130px;
+}
+
+.skeleton-line {
+  height: 13px;
+  border-radius: 7px;
+  background: linear-gradient(
+    90deg,
+    var(--line) 25%,
+    rgba(255, 250, 235, 0.9) 50%,
+    var(--line) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  margin-bottom: 10px;
+}
+
+.skeleton-line:last-child {
+  margin-bottom: 0;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ===== Bento Grid（最初のカードを2列分に拡大） ===== */
+.feed-col-articles .feed-card:first-child {
+  grid-column: span 2;
+}
+
+.feed-col-articles .feed-card:first-child .card-title {
+  font-size: 1.18rem;
+}
+
+@media (max-width: 600px) {
+  .feed-col-articles .feed-card:first-child {
+    grid-column: span 1;
   }
 }
 

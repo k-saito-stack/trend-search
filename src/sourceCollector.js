@@ -156,11 +156,10 @@ function makeSignal(source, payload) {
 }
 
 function buildXQuery(theme, sinceDate) {
-  const core = String(theme.query || theme.name || '').trim();
-  // X検索は最低3日分の窓を確保（バズり始めの投稿を確実に拾うため）
-  const xSinceDate = theme.periodDays >= 3 ? sinceDate : getSinceDate(3);
-  // -同人誌 -コミケ で同人関係の投稿を検索段階から除外
-  return `${core} 出版 OR 書籍 OR 書店 OR 書評 OR 重版 OR PR TIMES -同人誌 -コミケ since:${xSinceDate}`;
+  // X検索: 長いクエリは精度が落ちるため短く絞る
+  // 7日分の窓でバズった投稿を確実に捕捉（Top モードで人気順に取得）
+  const xSinceDate = getSinceDate(7);
+  return `出版社 OR 書評 OR 新刊 OR ベストセラー OR 重版 -同人誌 -コミケ since:${xSinceDate}`;
 }
 
 function parseAmazonRanking(html, source, limit) {

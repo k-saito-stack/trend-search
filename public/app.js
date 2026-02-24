@@ -10,6 +10,56 @@ const feedGridEl = document.getElementById('feedGrid');
 const headlineAEl = document.getElementById('headlineA');
 const headlineBEl = document.getElementById('headlineB');
 const toastEl = document.getElementById('toast');
+const progressBarEl = document.getElementById('progressBar');
+
+// ===== プログレスバー =====
+function showProgress() {
+  progressBarEl.classList.add('running');
+}
+
+function hideProgress() {
+  progressBarEl.classList.remove('running');
+}
+
+// ===== スケルトンローディング =====
+function makeSkeleton(widths) {
+  const lines = widths.map(w => `<div class="skeleton-line" style="width:${w}"></div>`).join('');
+  return `<article class="skeleton-card">${lines}</article>`;
+}
+
+function showSkeletons() {
+  const skeletons = [
+    makeSkeleton(['55%', '90%', '80%', '65%']),
+    makeSkeleton(['45%', '85%', '70%']),
+    makeSkeleton(['60%', '80%', '72%']),
+  ].join('');
+  feedGridEl.innerHTML = `<div class="feed-col-articles">${skeletons}</div>`;
+}
+
+// ===== スクロールフェードイン =====
+function initScrollAnimation() {
+  const cards = feedGridEl.querySelectorAll('.feed-card');
+
+  // アニメーション不要設定の場合は全カードを即表示
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    cards.forEach(el => el.classList.add('visible'));
+    return;
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08 });
+
+  cards.forEach((el, i) => {
+    el.style.transitionDelay = `${i * 55}ms`;
+    observer.observe(el);
+  });
+}
 
 function escapeHtml(text) {
   return String(text)
@@ -147,22 +197,42 @@ function buildTodaySummary(run) {
     return '今日の出版業界シグナルを準備しています。';
   }
 
-  // GrokのeditorialSummaryがあればそれを優先して表示
-  const editorial = run.payload?.editorialSummary || '';
-  if (editorial) return editorial;
+  const materials = run.payload?.materials || [];
 
-  // フォールバック：materialsの上位タイトルから生成
-  const titles = (run.payload?.materials || [])
-    .filter((item) => item.sourceCategory !== 'ranking')
-    .slice(0, 2)
-    .map((item) => item.title || '')
-    .filter(Boolean);
+  // Amazon総合ランキング1位
+  const amazonTop = materials.find(
+    (m) => m.sourceKind === 'amazon_bestseller' && Number(m.metricValue) === 1,
+  );
 
-  if (titles.length > 0) {
-    return `${titles[0]}など、今日の出版業界の動向をお届けします。`;
+  // X投稿：いいね数最多
+  const topX = materials
+    .filter((m) => m.sourceKind === 'x_grok')
+    .sort((a, b) => Number(b.metricValue || 0) - Number(a.metricValue || 0))[0];
+
+  const parts = [];
+  if (amazonTop?.title) {
+    const t = amazonTop.title.length > 20 ? amazonTop.title.slice(0, 20) + '…' : amazonTop.title;
+    parts.push(`Amazon総合1位「${t}」`);
+  }
+  if (topX?.title) {
+    const t = topX.title.length > 22 ? topX.title.slice(0, 22) + '…' : topX.title;
+    parts.push(`X話題「${t}」`);
   }
 
-  const total = Number(run.payload?.materials?.length || 0);
+  if (parts.length > 0) {
+    return parts.join('、') + 'など、今日の出版業界をまとめました。';
+  }
+
+  // フォールバック：ランキング・セール以外の最初のタイトル
+  const first = materials.find(
+    (m) => m.sourceCategory !== 'ranking' && m.sourceCategory !== 'deals',
+  );
+  if (first?.title) {
+    const t = first.title.length > 30 ? first.title.slice(0, 30) + '…' : first.title;
+    return `${t}など、今日の出版業界をお届けします。`;
+  }
+
+  const total = Number(materials.length || 0);
   return `今日は${total}件の出版業界シグナルを収集しました。`;
 }
 
@@ -332,6 +402,9 @@ function renderFeed(run) {
   const dealsColHtml = dealsCardHtml ? `<div class="feed-col-deals">${dealsCardHtml}</div>` : '';
   feedGridEl.innerHTML = articlesColHtml + rankingsColHtml + dealsColHtml;
 
+  // スクロールフェードインを初期化
+  initScrollAnimation();
+
   // カード全体クリックでURLを開く
   feedGridEl.querySelectorAll('.feed-card[data-url]').forEach((card) => {
     card.addEventListener('click', () => {
@@ -378,6 +451,7 @@ async function refresh() {
   const originalText = refreshBtnEl.textContent;
   refreshBtnEl.disabled = true;
   refreshBtnEl.textContent = 'Refreshing...';
+  showProgress();
 
   try {
     await triggerRunWithAuth();
@@ -387,6 +461,7 @@ async function refresh() {
   } catch (error) {
     notify(error.message, true);
   } finally {
+    hideProgress();
     refreshBtnEl.disabled = false;
     refreshBtnEl.textContent = originalText;
   }
@@ -397,6 +472,7 @@ refreshBtnEl.addEventListener('click', () => {
 });
 
 (async function init() {
+  showSkeletons();
   try {
     await loadSnapshot();
     render();
