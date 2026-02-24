@@ -7,7 +7,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node --test",
-    "demo:seed": "node scripts/seedDemoData.js"
+    "demo:seed": "node scripts/seedDemoData.js",
+    "build:pages": "node scripts/generateSnapshotForPages.js"
   },
   "engines": {
     "node": ">=20"

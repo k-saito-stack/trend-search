@@ -1,5 +1,6 @@
 const state = {
   snapshot: null,
+  isStaticMode: false,
 };
 const RUN_TOKEN_STORAGE_KEY = 'trend_atelier_run_token';
 
@@ -440,11 +441,29 @@ function render() {
 
   lastUpdatedEl.textContent = run ? `最終更新: ${formatDate(run.createdAt)}` : '';
 
+  // 静的モード（GitHub Pages）ではRefreshボタンを隠す
+  if (refreshBtnEl) {
+    refreshBtnEl.style.display = state.isStaticMode ? 'none' : '';
+  }
+
   renderFeed(run);
 }
 
 async function loadSnapshot() {
+  // まず snapshot.json を試みる（GitHub Pages静的モード）
+  try {
+    const res = await fetch('snapshot.json');
+    if (res.ok) {
+      state.snapshot = await res.json();
+      state.isStaticMode = true;
+      return;
+    }
+  } catch (_) {
+    // fallthrough to API mode
+  }
+  // 失敗したら /api/snapshot へ（ローカルAPIモード）
   state.snapshot = await api('/api/snapshot');
+  state.isStaticMode = false;
 }
 
 async function refresh() {
