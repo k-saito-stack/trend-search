@@ -1,4 +1,4 @@
-# Trend Atelier
+# Today's InSaito
 
 出版業界とその周辺業界の話題を、低コスト中心で横断収集するWebアプリです。
 
@@ -75,6 +75,6 @@ GitHub の **Actions タブ → Deploy to GitHub Pages → Run workflow** で手
 - `src/storage.js`: 固定テーマと run 保存
 - `scripts/generateSnapshotForPages.js`: GitHub Pages 用スナップショット生成
 - `.github/workflows/deploy-pages.yml`: 自動デプロイワークフロー
-- `public/*`: Today's Insights UI
+- `public/*`: Today's InSaito UI
 
 詳細は `MANUAL.md` を参照してください。

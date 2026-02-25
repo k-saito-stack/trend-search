@@ -1,11 +1,11 @@
-# Trend Atelier マニュアル
+# Today's InSaito マニュアル
 
 ## 1. 概要
 
-`Trend Atelier` は、**出版業界とその周辺業界**の話題を横断収集して表示するアプリです。
+`Today's InSaito` は、**出版業界とその周辺業界**の話題を横断収集して表示するアプリです。
 テーマは固定で、ユーザーがテーマを選んだり設定を開いたりする必要はありません。
 
-- 表示名: `Today's Insights`
+- 表示名: `Today's InSaito`
 - **ローカル版**: 毎日 `08:00 JST` / `16:00 JST` に自動実行 + `Refresh` ボタンで手動実行
 - **GitHub Pages版**: 毎日 `08:00 JST` / `16:00 JST` に GitHub Actions が自動収集・公開（Refreshボタンなし）
 - `08:00 JST`: 全ソース更新（記事 / X / ランキング / セール）

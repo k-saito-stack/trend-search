@@ -341,7 +341,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
-  console.log(`Trend Dashboard: http://${displayHost}:${PORT}`);
+  console.log(`Today's InSaito: http://${displayHost}:${PORT}`);
 });
 
 function shutdown() {

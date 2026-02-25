@@ -6,7 +6,7 @@ const { getSourceCatalog, buildGoogleNewsRssUrl } = require('./sourceCatalog');
 const DEFAULT_TIMEOUT_MS = Number(process.env.SOURCE_HTTP_TIMEOUT_MS || 12000);
 const DEFAULT_CONCURRENCY = Math.max(1, Number(process.env.SOURCE_CONCURRENCY || 4));
 const DEFAULT_MAX_RESPONSE_BYTES = Math.max(64 * 1024, Number(process.env.SOURCE_MAX_RESPONSE_BYTES || 2 * 1024 * 1024));
-const DEFAULT_USER_AGENT = 'TrendAtelierCollector/0.2 (+https://localhost)';
+const DEFAULT_USER_AGENT = 'TodaysInSaitoCollector/0.2 (+https://localhost)';
 
 // ボット検知を回避するためのブラウザUser-Agent一覧（ランダムで使用）
 const BROWSER_USER_AGENTS = [
