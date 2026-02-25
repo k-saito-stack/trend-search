@@ -19,7 +19,7 @@ function startDailyScheduler(options = {}) {
     }
     lastMinuteKey = minuteKey;
 
-    if (now.hour !== '09' || now.minute !== '00') {
+    if (now.hour !== '08' || now.minute !== '00') {
       return;
     }
 
