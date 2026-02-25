@@ -1,6 +1,23 @@
-const { readPrimaryTheme, hasRunOnDate } = require('./storage');
+const { readPrimaryTheme, hasRunOnDateSlot } = require('./storage');
 const { runTheme } = require('./trendService');
 const { getJstParts } = require('./utils');
+
+const SCHEDULE_SLOTS = [
+  {
+    hour: '08',
+    minute: '00',
+    slot: 'morning_full',
+    sourceMode: 'all',
+    carryForwardSourceCategories: [],
+  },
+  {
+    hour: '16',
+    minute: '00',
+    slot: 'afternoon_news',
+    sourceMode: 'news_social',
+    carryForwardSourceCategories: ['ranking', 'deals'],
+  },
+];
 
 function startDailyScheduler(options = {}) {
   const intervalMs = Number(options.intervalMs) || 60 * 1000;
@@ -19,7 +36,10 @@ function startDailyScheduler(options = {}) {
     }
     lastMinuteKey = minuteKey;
 
-    if (now.hour !== '08' || now.minute !== '00') {
+    const activeSlot = SCHEDULE_SLOTS.find(
+      (slot) => slot.hour === now.hour && slot.minute === now.minute,
+    );
+    if (!activeSlot) {
       return;
     }
 
@@ -36,20 +56,25 @@ function startDailyScheduler(options = {}) {
         return;
       }
 
-      if (hasRunOnDate(theme.id, now.date)) {
-        log(`[scheduler] ${theme.name} は ${now.date} 実行済みのためスキップ`);
+      if (hasRunOnDateSlot(theme.id, now.date, activeSlot.slot)) {
+        log(`[scheduler] ${theme.name} は ${now.date} ${activeSlot.slot} 実行済みのためスキップ`);
         return;
       }
 
       try {
-        await runTheme(theme, options);
-        log(`[scheduler] ${theme.name} の収集が完了`);
+        await runTheme(theme, {
+          ...options,
+          sourceMode: activeSlot.sourceMode,
+          scheduleSlot: activeSlot.slot,
+          carryForwardSourceCategories: activeSlot.carryForwardSourceCategories,
+        });
+        log(`[scheduler] ${theme.name} の収集が完了 (${activeSlot.slot})`);
       } catch (error) {
         if (error?.code === 'THEME_RUN_IN_PROGRESS') {
-          log(`[scheduler] ${theme.name} は他の実行が進行中のためスキップ`);
+          log(`[scheduler] ${theme.name} は他の実行が進行中のためスキップ (${activeSlot.slot})`);
           return;
         }
-        log(`[scheduler] ${theme.name} の収集に失敗: ${error.message}`);
+        log(`[scheduler] ${theme.name} の収集に失敗 (${activeSlot.slot}): ${error.message}`);
       }
     } finally {
       inFlight = false;

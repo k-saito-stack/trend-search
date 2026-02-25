@@ -6,8 +6,10 @@
 テーマは固定で、ユーザーがテーマを選んだり設定を開いたりする必要はありません。
 
 - 表示名: `Today's Insights`
-- **ローカル版**: 毎朝 `08:00 JST` に自動実行 + `Refresh` ボタンで手動実行
-- **GitHub Pages版**: 毎日 `08:00 JST` に GitHub Actions が自動収集・公開（Refreshボタンなし）
+- **ローカル版**: 毎日 `08:00 JST` / `16:00 JST` に自動実行 + `Refresh` ボタンで手動実行
+- **GitHub Pages版**: 毎日 `08:00 JST` / `16:00 JST` に GitHub Actions が自動収集・公開（Refreshボタンなし）
+- `08:00 JST`: 全ソース更新（記事 / X / ランキング / セール）
+- `16:00 JST`: 記事 + X を再取得し、ランキング/セールは直近データを維持
 
 ## 2. 収集対象
 
@@ -73,7 +75,7 @@ RUN_ON_START=0
    - **Secrets**: `XAI_API_KEY`（xAI APIキー）
    - **Variables**: `XAI_MODEL`（例: `grok-4-1-fast-non-reasoning`）、`SOURCE_ENABLE_X`（`1` か `0`）
 3. **Actions タブ → Deploy to GitHub Pages → Run workflow** で初回デプロイ
-4. 以降は毎日 `08:00 JST` に自動実行
+4. 以降は毎日 `08:00 JST`（全ソース）と `16:00 JST`（記事+X更新）に自動実行
 
 ## 5. API（ローカル版）
 
@@ -110,7 +112,7 @@ GET /api/health
 
 ## 6. 運用メモ
 
-- **ローカル版**: サーバーが `08:00 JST` に起動していないと自動実行されません。
+- **ローカル版**: サーバーが `08:00 JST` / `16:00 JST` に起動していないと自動実行されません。
 - **GitHub Pages版**: Actions の `schedule` は数分〜数十分遅延することがあります。
 - 外部サイト都合で一部ソースが失敗しても、他ソースは継続します。
 - データは `data/trends.json` に保存されます（上限1000件、ローカル版のみ）。
@@ -124,7 +126,7 @@ GET /api/health
 - `src/sourceCatalog.js`: 収集ソース定義
 - `src/sourceCollector.js`: 並列収集処理
 - `src/signalDigest.js`: 統合整形
-- `src/scheduler.js`: 08:00 JST スケジュール（ローカル版）
+- `src/scheduler.js`: 08:00 / 16:00 JST スケジュール（ローカル版）
 - `scripts/generateSnapshotForPages.js`: GitHub Pages用スナップショット生成
 - `.github/workflows/deploy-pages.yml`: 自動デプロイワークフロー
 - `public/index.html`, `public/app.js`, `public/styles.css`: UI

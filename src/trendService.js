@@ -13,6 +13,74 @@ function buildUserMessage(theme) {
   };
 }
 
+function normalizeCarryCategories(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+}
+
+function carryForwardSourceCategories(digest, themeId, categories) {
+  const carryCategories = normalizeCarryCategories(categories);
+  if (carryCategories.length === 0) {
+    return;
+  }
+
+  const currentMaterials = Array.isArray(digest?.payload?.materials)
+    ? digest.payload.materials
+    : [];
+
+  const existingCategories = new Set(
+    currentMaterials.map((item) => String(item?.sourceCategory || '').trim()),
+  );
+  const missingCategories = carryCategories.filter((category) => !existingCategories.has(category));
+  if (missingCategories.length === 0) {
+    return;
+  }
+
+  const recentRuns = getRunsByTheme(themeId, 10);
+  if (recentRuns.length === 0) {
+    return;
+  }
+
+  const carriedMaterials = [];
+  const filled = new Set();
+
+  for (const pastRun of recentRuns) {
+    const pastMaterials = Array.isArray(pastRun?.payload?.materials)
+      ? pastRun.payload.materials
+      : [];
+
+    for (const category of missingCategories) {
+      if (filled.has(category)) {
+        continue;
+      }
+
+      const found = pastMaterials.filter((item) => String(item?.sourceCategory || '').trim() === category);
+      if (found.length > 0) {
+        carriedMaterials.push(...found);
+        filled.add(category);
+      }
+    }
+
+    if (filled.size === missingCategories.length) {
+      break;
+    }
+  }
+
+  if (carriedMaterials.length === 0) {
+    return;
+  }
+
+  digest.payload.materials = [...currentMaterials, ...carriedMaterials];
+  if (digest.payload.coverage && typeof digest.payload.coverage === 'object') {
+    digest.payload.coverage.signals = digest.payload.materials.length;
+  }
+}
+
 async function runThemeOnce(theme, options = {}) {
   const apiKey = options.apiKey || process.env.XAI_API_KEY;
   const model = options.model || process.env.XAI_MODEL || 'grok-4-1-fast';
@@ -21,6 +89,7 @@ async function runThemeOnce(theme, options = {}) {
   const collection = await collectThemeSignals(theme, {
     apiKey,
     model,
+    sourceMode: options.sourceMode || 'all',
   });
   const digest = buildTrendPayload(theme, collection);
 
@@ -42,6 +111,8 @@ async function runThemeOnce(theme, options = {}) {
     }
   }
 
+  carryForwardSourceCategories(digest, theme.id, options.carryForwardSourceCategories);
+
   const now = new Date();
   const jst = getJstParts(now);
 
@@ -53,6 +124,7 @@ async function runThemeOnce(theme, options = {}) {
     periodDays: theme.periodDays,
     periodLabel: getPeriodLabel(theme.periodDays),
     model: apiKey ? model : 'no_x_model',
+    scheduleSlot: String(options.scheduleSlot || 'manual').trim() || 'manual',
     queryWithSince: digest.queryWithSince || userMessage.text,
     sinceDate: userMessage.sinceDate,
     runDateJst: jst.date,

@@ -73,17 +73,118 @@ function buildPagesSnapshotUrl() {
   return `https://${owner}.github.io/${name}/snapshot.json`;
 }
 
+function normalizeCategoryList(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+}
+
+function buildMaterialKey(item) {
+  const sourceId = String(item?.sourceId || '').trim();
+  const url = String(item?.url || '').trim();
+  const title = String(item?.title || '').trim().toLowerCase();
+
+  if (sourceId && url) return `${sourceId}::${url}`;
+  if (sourceId && title) return `${sourceId}::${title}`;
+  if (url) return `url::${url}`;
+  if (title) return `title::${title}`;
+  return '';
+}
+
+function carryForwardMaterialsFromSnapshot(run, oldSnapshot, categories) {
+  const carryCategories = new Set(normalizeCategoryList(categories));
+  if (carryCategories.size === 0) {
+    return { carriedCount: 0, sourceIds: [] };
+  }
+
+  const currentMaterials = Array.isArray(run?.payload?.materials) ? run.payload.materials : [];
+  const oldMaterials = Array.isArray(oldSnapshot?.latestRun?.payload?.materials)
+    ? oldSnapshot.latestRun.payload.materials
+    : [];
+
+  if (oldMaterials.length === 0) {
+    return { carriedCount: 0, sourceIds: [] };
+  }
+
+  const existingKeys = new Set(currentMaterials.map((item) => buildMaterialKey(item)).filter(Boolean));
+  const carried = [];
+  const carriedSourceIds = new Set();
+
+  for (const item of oldMaterials) {
+    const category = String(item?.sourceCategory || '').trim();
+    if (!carryCategories.has(category)) {
+      continue;
+    }
+
+    const key = buildMaterialKey(item);
+    if (key && existingKeys.has(key)) {
+      continue;
+    }
+
+    if (key) {
+      existingKeys.add(key);
+    }
+    carried.push(item);
+
+    const sourceId = String(item?.sourceId || '').trim();
+    if (sourceId) {
+      carriedSourceIds.add(sourceId);
+    }
+  }
+
+  if (carried.length === 0) {
+    return { carriedCount: 0, sourceIds: [] };
+  }
+
+  if (!run.payload || typeof run.payload !== 'object') {
+    run.payload = {};
+  }
+  run.payload.materials = [...currentMaterials, ...carried];
+  if (run.payload.coverage && typeof run.payload.coverage === 'object') {
+    run.payload.coverage.signals = run.payload.materials.length;
+  }
+
+  return {
+    carriedCount: carried.length,
+    sourceIds: Array.from(carriedSourceIds),
+  };
+}
+
+function resolvePagesRunConfig(nowJstHour) {
+  if (String(nowJstHour || '').trim() === '16') {
+    return {
+      slot: 'afternoon_news',
+      sourceMode: 'news_social',
+      carryForwardSourceCategories: ['ranking', 'deals'],
+    };
+  }
+
+  return {
+    slot: 'morning_full',
+    sourceMode: 'all',
+    carryForwardSourceCategories: [],
+  };
+}
+
 async function main() {
   loadDotEnv();
   const { readPrimaryTheme } = require('../src/storage');
   const { runTheme } = require('../src/trendService');
+  const { getJstParts } = require('../src/utils');
 
   const theme = readPrimaryTheme();
   const apiKey = process.env.XAI_API_KEY || '';
   const model = process.env.XAI_MODEL || 'grok-4-1-fast-non-reasoning';
+  const nowJst = getJstParts();
+  const runConfig = resolvePagesRunConfig(nowJst.hour);
 
   console.log(`テーマ: ${theme.name}`);
   console.log(`モデル: ${model}`);
+  console.log(`実行スロット: ${runConfig.slot}`);
 
   // 1. 旧snapshotを取得（キャッシュ用）
   const pagesUrl = buildPagesSnapshotUrl();
@@ -99,7 +200,13 @@ async function main() {
   }
 
   // 2. 通常の収集を実行
-  const run = await runTheme(theme, { apiKey, model });
+  const run = await runTheme(theme, {
+    apiKey,
+    model,
+    sourceMode: runConfig.sourceMode,
+    scheduleSlot: runConfig.slot,
+    carryForwardSourceCategories: runConfig.carryForwardSourceCategories,
+  });
 
   // 3. sourceStatsからエラーソースを特定し、旧データで補完
   const now = new Date().toISOString();
@@ -133,6 +240,21 @@ async function main() {
       // skipped等
       sourceFetchedAt[stat.sourceId] = null;
     }
+  }
+
+  // 16時実行はランキング/セールを旧snapshotから維持
+  const carryResult = carryForwardMaterialsFromSnapshot(
+    run,
+    oldSnapshot,
+    runConfig.carryForwardSourceCategories,
+  );
+  if (carryResult.carriedCount > 0) {
+    for (const sourceId of carryResult.sourceIds) {
+      if (!sourceFetchedAt[sourceId]) {
+        sourceFetchedAt[sourceId] = oldFetchedAt[sourceId] || oldSnapshot?.now || now;
+      }
+    }
+    console.log(`[carry] 旧snapshotから ${carryResult.carriedCount} 件を維持しました`);
   }
 
   if (cacheUsed > 0) {

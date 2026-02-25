@@ -183,6 +183,19 @@ function hasRunOnDate(themeId, runDateJst) {
   return store.runs.some((run) => run.themeId === themeId && run.runDateJst === runDateJst);
 }
 
+function hasRunOnDateSlot(themeId, runDateJst, scheduleSlot) {
+  const slot = String(scheduleSlot || '').trim();
+  if (!slot) return false;
+
+  const store = readTrendStore();
+  return store.runs.some(
+    (run) =>
+      run.themeId === themeId &&
+      run.runDateJst === runDateJst &&
+      String(run.scheduleSlot || '').trim() === slot,
+  );
+}
+
 function getLatestRunByTheme(themeId) {
   const store = readTrendStore();
   return store.runs.find((run) => run.themeId === themeId) || null;
@@ -217,6 +230,7 @@ module.exports = {
   deleteTheme,
   appendRun,
   hasRunOnDate,
+  hasRunOnDateSlot,
   getLatestRunByTheme,
   getRunsByTheme,
   getLatestRunsMap,

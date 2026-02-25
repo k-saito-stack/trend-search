@@ -798,7 +798,13 @@ function dedupeSignals(items) {
 
 async function collectThemeSignals(theme, options = {}) {
   const sinceDate = getSinceDate(theme.periodDays);
-  const sourceCatalog = getSourceCatalog();
+  const sourceMode = String(options.sourceMode || 'all').trim();
+  const sourceCatalog = getSourceCatalog().filter((source) => {
+    if (sourceMode === 'news_social') {
+      return source.kind === 'x_grok' || (source.category !== 'ranking' && source.category !== 'deals');
+    }
+    return true;
+  });
   const context = {
     theme,
     sinceDate,

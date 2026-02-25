@@ -3,8 +3,10 @@
 出版業界とその周辺業界の話題を、低コスト中心で横断収集するWebアプリです。
 
 - テーマは固定: `出版業界と周辺業界`
-- **GitHub Pages版**: 毎日 `08:00 JST` に GitHub Actions が自動収集・公開
-- **ローカル版**: `08:00 JST` に自動実行 + `Refresh` ボタンで手動実行
+- **GitHub Pages版**: 毎日 `08:00 JST` と `16:00 JST` に GitHub Actions が自動収集・公開
+- **ローカル版**: `08:00 JST` / `16:00 JST` に自動実行 + `Refresh` ボタンで手動実行
+- `08:00 JST`: 全ソース更新（記事 / X / ランキング / セール）
+- `16:00 JST`: 記事 + X を再取得し、ランキング/セールは直近データを維持
 - 収集ソース: Google News RSS / 各書店ランキング / Yahoo! フォロー / はてブ / 新文化オンライン / HON.jp / Kindle日替わりセール / 任意で X(Grok)
 
 ## クイックスタート（ローカル）
@@ -33,7 +35,7 @@ GitHub の **Actions タブ → Deploy to GitHub Pages → Run workflow** で手
 
 ### 3. 以降は自動
 
-毎日 `08:00 JST` に自動収集・デプロイされます。
+毎日 `08:00 JST`（全ソース）と `16:00 JST`（記事+X更新）に自動収集・デプロイされます。
 手動で即時更新したい場合も `workflow_dispatch` から実行できます。
 
 ## 環境変数
@@ -69,7 +71,7 @@ GitHub の **Actions タブ → Deploy to GitHub Pages → Run workflow** で手
 - `src/sourceCatalog.js`: ソース定義（Google News / 書店ランキング / RSS / Kindle deals）
 - `src/sourceCollector.js`: マルチソース収集
 - `src/signalDigest.js`: 重複排除 / スコアリング / クラスタ化
-- `src/scheduler.js`: 08:00 JST 自動実行（ローカル版）
+- `src/scheduler.js`: 08:00 / 16:00 JST 自動実行（ローカル版）
 - `src/storage.js`: 固定テーマと run 保存
 - `scripts/generateSnapshotForPages.js`: GitHub Pages 用スナップショット生成
 - `.github/workflows/deploy-pages.yml`: 自動デプロイワークフロー
