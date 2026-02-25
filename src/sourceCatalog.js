@@ -150,10 +150,20 @@ const SOURCE_CATALOG = [
     itemLimit: 8,
     queryTemplate: '{theme} 受賞 OR ランキング OR ベストセラー',
   },
-  // ネット書店ランキング
-  // Amazon本・Kindleランキングは一時無効化（GitHub Actionsからのアクセスがブロックされるため）
-  // { id: 'ranking_amazon_books', kind: 'rss_ranking', name: 'Amazonランキング / 本', category: 'ranking', costTier: 'free', priority: 4, itemLimit: 10, url: 'https://livdir.com/am-tb/amaranrss/get/?url=https://www.amazon.co.jp/gp/bestsellers/books/' },
-  // { id: 'ranking_amazon_kindle', kind: 'rss_ranking', name: 'Amazonランキング / Kindle', category: 'ranking', costTier: 'free', priority: 4, itemLimit: 10, url: 'https://livdir.com/am-tb/amaranrss/get/?url=https://www.amazon.co.jp/gp/bestsellers/digital-text/2275256051/' },
+  // ネット書店ランキング：Amazon本 → 楽天（真ん中） → Kindle の列順
+  {
+    id: 'ranking_amazon_books',
+    kind: 'amazon_ranking',
+    name: 'Amazonランキング / 本',
+    category: 'ranking',
+    costTier: 'free',
+    priority: 4,
+    itemLimit: 10,
+    urls: [
+      'https://www.cdn.amazon.co.jp/gp/bestsellers/books',
+      'https://www.amazon.co.jp/gp/bestsellers/books',
+    ],
+  },
   {
     id: 'ranking_rakuten',
     kind: 'rakuten_bestseller',
@@ -163,6 +173,18 @@ const SOURCE_CATALOG = [
     priority: 4,
     itemLimit: 10,
     url: 'https://books.rakuten.co.jp/ranking/hourly/001/',
+  },
+  {
+    id: 'ranking_amazon_kindle',
+    kind: 'amazon_ranking',
+    name: 'Amazonランキング / Kindle',
+    category: 'ranking',
+    costTier: 'free',
+    priority: 4,
+    itemLimit: 10,
+    urls: [
+      'https://www.amazon.co.jp/gp/bestsellers/digital-text/2275256051/',
+    ],
   },
   // 書店・取次ランキング：丸善 → ジュンク堂 → 有隣堂 → トーハン（一番右）の列順
   {

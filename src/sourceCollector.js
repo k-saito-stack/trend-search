@@ -437,6 +437,86 @@ async function collectYurindoRanking(source, context) {
   );
 }
 
+function isRobotCheck(html) {
+  return /Robot Check|captcha|Enter the characters|文字を入力/i.test(html);
+}
+
+function parseAmazonRankingPage(html, limit) {
+  const results = [];
+  const seen = new Set();
+  const pattern = /<a[^>]+href="([^"]*\/dp\/([A-Z0-9]{10})[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let hit;
+
+  while ((hit = pattern.exec(html)) && results.length < limit * 3) {
+    const asin = hit[2];
+    const body = hit[3];
+    const bodyText = stripTags(body).replace(/\s+/g, ' ').trim();
+    const altMatch = body.match(/alt="([^"]+)"/i);
+    const altText = altMatch ? stripTags(altMatch[1]).replace(/\s+/g, ' ').trim() : '';
+    const title = truncate(bodyText.length >= 5 ? bodyText : altText, 120);
+
+    if (!title || title.length < 3) continue;
+    if (seen.has(asin)) continue;
+    if (/Amazon\.co\.jp|カート|ほしい物リスト|ポイント/i.test(title)) continue;
+    if (/マスターカード|クレジットカード|ギフト券|Unlimited|プライム会員|Echo|Kindle端末|Fire\s*(?:TV|タブレット)|Alexa/i.test(title)) continue;
+    if (/^[\s¥￥\d,，.]+円?$/.test(title)) continue;
+
+    seen.add(asin);
+    results.push({
+      asin,
+      title,
+      url: `https://www.amazon.co.jp/dp/${asin}`,
+    });
+  }
+
+  return results.slice(0, limit);
+}
+
+async function collectAmazonRanking(source, context) {
+  const urls = source.urls || [source.url];
+  let lastError = '';
+
+  for (const url of urls) {
+    try {
+      const html = await fetchText(url, {
+        timeoutMs: context.timeoutMs,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120',
+          'Accept-Language': 'ja-JP,ja;q=0.9',
+        },
+      });
+
+      if (isRobotCheck(html)) {
+        lastError = `Robot Check detected: ${url}`;
+        console.log(`[amazon_ranking] ${lastError}`);
+        continue;
+      }
+
+      const entries = parseAmazonRankingPage(html, Number(source.itemLimit || 10));
+      if (entries.length === 0) {
+        lastError = `0件抽出: ${url}`;
+        console.log(`[amazon_ranking] ${lastError}`);
+        continue;
+      }
+
+      return entries.map((entry, index) =>
+        makeSignal(source, {
+          title: entry.title,
+          summary: `${entry.title}（Amazonランキング）`,
+          url: entry.url,
+          metricLabel: 'rank',
+          metricValue: index + 1,
+        }),
+      );
+    } catch (err) {
+      lastError = `${url}: ${err.message}`;
+      console.log(`[amazon_ranking] fetch失敗: ${lastError}`);
+    }
+  }
+
+  throw new Error(lastError || 'all URLs failed');
+}
+
 function parseKinseriDeals(html, limit) {
   const results = [];
   const seen = new Set();
@@ -550,6 +630,11 @@ async function collectSingleSource(source, context) {
         meta: {},
         durationMs: Date.now() - startedAt,
       };
+    }
+
+    if (source.kind === 'amazon_ranking') {
+      const items = await collectAmazonRanking(source, context);
+      return { source, status: 'ok', items, meta: {}, durationMs: Date.now() - startedAt };
     }
 
     if (source.kind === 'rss_direct') {
