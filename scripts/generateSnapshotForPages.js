@@ -83,6 +83,22 @@ function normalizeCategoryList(value) {
     .filter(Boolean);
 }
 
+function buildRunConfig(slot) {
+  if (slot === 'afternoon_news') {
+    return {
+      slot: 'afternoon_news',
+      sourceMode: 'news_social',
+      carryForwardSourceCategories: ['ranking', 'deals'],
+    };
+  }
+
+  return {
+    slot: 'morning_full',
+    sourceMode: 'all',
+    carryForwardSourceCategories: [],
+  };
+}
+
 function buildMaterialKey(item) {
   const sourceId = String(item?.sourceId || '').trim();
   const url = String(item?.url || '').trim();
@@ -154,20 +170,42 @@ function carryForwardMaterialsFromSnapshot(run, oldSnapshot, categories) {
   };
 }
 
-function resolvePagesRunConfig(nowJstHour) {
-  if (String(nowJstHour || '').trim() === '16') {
-    return {
-      slot: 'afternoon_news',
-      sourceMode: 'news_social',
-      carryForwardSourceCategories: ['ranking', 'deals'],
-    };
+function hasCarryCandidates(snapshot, categories) {
+  const carryCategories = new Set(normalizeCategoryList(categories));
+  if (carryCategories.size === 0) {
+    return true;
   }
 
-  return {
-    slot: 'morning_full',
-    sourceMode: 'all',
-    carryForwardSourceCategories: [],
-  };
+  const materials = Array.isArray(snapshot?.latestRun?.payload?.materials)
+    ? snapshot.latestRun.payload.materials
+    : [];
+
+  return materials.some((item) => carryCategories.has(String(item?.sourceCategory || '').trim()));
+}
+
+function resolvePagesRunConfig(options = {}) {
+  const preferredSlot = String(options.preferredSlot || '').trim();
+  if (preferredSlot === 'morning_full' || preferredSlot === 'afternoon_news') {
+    return buildRunConfig(preferredSlot);
+  }
+
+  const eventName = String(options.eventName || '').trim();
+  const eventSchedule = String(options.eventSchedule || '').trim();
+  if (eventName === 'schedule') {
+    if (eventSchedule === '0 23 * * *') {
+      return buildRunConfig('morning_full');
+    }
+    if (eventSchedule === '0 7 * * *') {
+      return buildRunConfig('afternoon_news');
+    }
+  }
+
+  const nowJstHour = String(options.nowJstHour || '').trim();
+  if (nowJstHour === '16') {
+    return buildRunConfig('afternoon_news');
+  }
+
+  return buildRunConfig('morning_full');
 }
 
 async function main() {
@@ -180,7 +218,11 @@ async function main() {
   const apiKey = process.env.XAI_API_KEY || '';
   const model = process.env.XAI_MODEL || 'grok-4-1-fast-non-reasoning';
   const nowJst = getJstParts();
-  const runConfig = resolvePagesRunConfig(nowJst.hour);
+  const runConfig = resolvePagesRunConfig({
+    nowJstHour: nowJst.hour,
+    eventName: process.env.PAGES_EVENT_NAME || '',
+    eventSchedule: process.env.PAGES_EVENT_SCHEDULE || '',
+  });
 
   console.log(`テーマ: ${theme.name}`);
   console.log(`モデル: ${model}`);
@@ -199,13 +241,26 @@ async function main() {
     console.log('[cache] GITHUB_REPOSITORY未設定のためキャッシュスキップ');
   }
 
+  let effectiveRunConfig = runConfig;
+  if (
+    runConfig.slot === 'afternoon_news' &&
+    !hasCarryCandidates(oldSnapshot, runConfig.carryForwardSourceCategories)
+  ) {
+    console.log('[carry] 旧snapshotにランキング/セールがないため全ソース収集にフォールバック');
+    effectiveRunConfig = {
+      ...runConfig,
+      sourceMode: 'all',
+      carryForwardSourceCategories: [],
+    };
+  }
+
   // 2. 通常の収集を実行
   const run = await runTheme(theme, {
     apiKey,
     model,
-    sourceMode: runConfig.sourceMode,
-    scheduleSlot: runConfig.slot,
-    carryForwardSourceCategories: runConfig.carryForwardSourceCategories,
+    sourceMode: effectiveRunConfig.sourceMode,
+    scheduleSlot: effectiveRunConfig.slot,
+    carryForwardSourceCategories: effectiveRunConfig.carryForwardSourceCategories,
   });
 
   // 3. sourceStatsからエラーソースを特定し、旧データで補完
@@ -246,7 +301,7 @@ async function main() {
   const carryResult = carryForwardMaterialsFromSnapshot(
     run,
     oldSnapshot,
-    runConfig.carryForwardSourceCategories,
+    effectiveRunConfig.carryForwardSourceCategories,
   );
   if (carryResult.carriedCount > 0) {
     for (const sourceId of carryResult.sourceIds) {

@@ -33,6 +33,8 @@ jobs:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           XAI_MODEL: ${{ vars.XAI_MODEL }}
           SOURCE_ENABLE_X: ${{ vars.SOURCE_ENABLE_X }}
+          PAGES_EVENT_NAME: ${{ github.event_name }}
+          PAGES_EVENT_SCHEDULE: ${{ github.event.schedule || '' }}
         run: node scripts/generateSnapshotForPages.js
 
       - uses: actions/configure-pages@v5
