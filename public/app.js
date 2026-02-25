@@ -12,6 +12,27 @@ const headlineAEl = document.getElementById('headlineA');
 const headlineBEl = document.getElementById('headlineB');
 const toastEl = document.getElementById('toast');
 const progressBarEl = document.getElementById('progressBar');
+const tokenModalEl = document.getElementById('tokenModal');
+const tokenModalFormEl = document.getElementById('tokenModalForm');
+const tokenModalInputEl = document.getElementById('tokenModalInput');
+const tokenModalShowEl = document.getElementById('tokenModalShow');
+const tokenModalMessageEl = document.getElementById('tokenModalMessage');
+const tokenModalErrorEl = document.getElementById('tokenModalError');
+const tokenModalCancelEl = document.getElementById('tokenModalCancel');
+
+let tokenModalResolver = null;
+
+function isTokenModalReady() {
+  return Boolean(
+    tokenModalEl
+    && tokenModalFormEl
+    && tokenModalInputEl
+    && tokenModalShowEl
+    && tokenModalMessageEl
+    && tokenModalErrorEl
+    && tokenModalCancelEl,
+  );
+}
 
 // ===== プログレスバー =====
 function showProgress() {
@@ -114,6 +135,57 @@ function buildRunRequestHeaders() {
   return headers;
 }
 
+function closeTokenModal(result) {
+  if (!isTokenModalReady()) {
+    return;
+  }
+  if (typeof tokenModalResolver !== 'function') {
+    return;
+  }
+  const resolve = tokenModalResolver;
+  tokenModalResolver = null;
+  tokenModalEl.hidden = true;
+  document.body.classList.remove('modal-open');
+  tokenModalInputEl.value = '';
+  tokenModalInputEl.type = 'password';
+  tokenModalShowEl.checked = false;
+  tokenModalErrorEl.hidden = true;
+  tokenModalErrorEl.textContent = '';
+  resolve(result);
+}
+
+function openTokenModal(message = '', errorMessage = '') {
+  if (!isTokenModalReady()) {
+    const fallback = window.prompt(message || 'Run API token を入力してください。');
+    return Promise.resolve(fallback);
+  }
+
+  return new Promise((resolve) => {
+    tokenModalResolver = resolve;
+    tokenModalMessageEl.textContent = message || '実行用トークンを入力してください。';
+    tokenModalErrorEl.hidden = !errorMessage;
+    tokenModalErrorEl.textContent = errorMessage || '';
+    tokenModalEl.hidden = false;
+    document.body.classList.add('modal-open');
+    setTimeout(() => tokenModalInputEl.focus(), 0);
+  });
+}
+
+async function requestRunToken(errorMessage = '') {
+  const provided = await openTokenModal(
+    'Run API token を入力してください。',
+    errorMessage,
+  );
+
+  if (!provided || !provided.trim()) {
+    throw new Error('認証トークン未入力のため実行を中止しました。');
+  }
+
+  const token = provided.trim();
+  localStorage.setItem(RUN_TOKEN_STORAGE_KEY, token);
+  return token;
+}
+
 function isSafeHttpUrl(href) {
   try {
     const parsed = new URL(String(href || ''), window.location.href);
@@ -145,39 +217,76 @@ function normalizeRunError(error) {
 }
 
 async function triggerRunWithAuth() {
+  const executeRun = () => api('/api/run', {
+    method: 'POST',
+    headers: buildRunRequestHeaders(),
+    body: JSON.stringify({}),
+  });
+
   try {
-    return await api('/api/run', {
-      method: 'POST',
-      headers: buildRunRequestHeaders(),
-      body: JSON.stringify({}),
-    });
+    return await executeRun();
   } catch (error) {
     if (error.code !== 'RUN_AUTH_REQUIRED') {
       throw normalizeRunError(error);
     }
+  }
 
-    const provided = window.prompt('Run API token を入力してください');
-    if (!provided || !provided.trim()) {
-      throw new Error('認証トークン未入力のため実行を中止しました。');
-    }
+  await requestRunToken();
 
-    localStorage.setItem(RUN_TOKEN_STORAGE_KEY, provided.trim());
-
-    try {
-      return await api('/api/run', {
-        method: 'POST',
-        headers: buildRunRequestHeaders(),
-        body: JSON.stringify({}),
-      });
-    } catch (retryError) {
-      if (retryError.code === 'RUN_AUTH_REQUIRED') {
-        localStorage.removeItem(RUN_TOKEN_STORAGE_KEY);
-        throw new Error('認証トークンが不正です。');
-      }
-
+  try {
+    return await executeRun();
+  } catch (retryError) {
+    if (retryError.code !== 'RUN_AUTH_REQUIRED') {
       throw normalizeRunError(retryError);
     }
   }
+
+  localStorage.removeItem(RUN_TOKEN_STORAGE_KEY);
+  await requestRunToken('認証トークンが不正です。もう一度入力してください。');
+
+  try {
+    return await executeRun();
+  } catch (lastError) {
+    if (lastError.code === 'RUN_AUTH_REQUIRED') {
+      localStorage.removeItem(RUN_TOKEN_STORAGE_KEY);
+      throw new Error('認証トークンが不正です。');
+    }
+    throw normalizeRunError(lastError);
+  }
+}
+
+if (isTokenModalReady()) {
+  tokenModalFormEl.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const value = tokenModalInputEl.value.trim();
+    if (!value) {
+      tokenModalErrorEl.hidden = false;
+      tokenModalErrorEl.textContent = 'トークンを入力してください。';
+      tokenModalInputEl.focus();
+      return;
+    }
+    closeTokenModal(value);
+  });
+
+  tokenModalCancelEl.addEventListener('click', () => {
+    closeTokenModal(null);
+  });
+
+  tokenModalEl.addEventListener('click', (event) => {
+    if (event.target === tokenModalEl) {
+      closeTokenModal(null);
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !tokenModalEl.hidden) {
+      closeTokenModal(null);
+    }
+  });
+
+  tokenModalShowEl.addEventListener('change', () => {
+    tokenModalInputEl.type = tokenModalShowEl.checked ? 'text' : 'password';
+  });
 }
 
 function formatDate(isoDate) {
