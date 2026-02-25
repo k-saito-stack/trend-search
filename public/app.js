@@ -252,7 +252,25 @@ function buildHeadline(run) {
 }
 
 
-function buildRankingCard(rankingItems, label) {
+function formatFetchedAt(isoDate) {
+  if (!isoDate) return '';
+  const fetched = new Date(isoDate);
+  if (Number.isNaN(fetched.getTime())) return '';
+  const today = new Date();
+  const tokyoFetched = new Date(fetched.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+  const tokyoToday = new Date(today.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+  // 当日データなら表示しない
+  if (tokyoFetched.getFullYear() === tokyoToday.getFullYear() &&
+      tokyoFetched.getMonth() === tokyoToday.getMonth() &&
+      tokyoFetched.getDate() === tokyoToday.getDate()) {
+    return '';
+  }
+  const m = tokyoFetched.getMonth() + 1;
+  const d = tokyoFetched.getDate();
+  return `${m}/${d}取得`;
+}
+
+function buildRankingCard(rankingItems, label, sourceFetchedAt) {
   if (rankingItems.length === 0) return '';
 
   // ソース名ごとにグループ化してソート
@@ -264,6 +282,7 @@ function buildRankingCard(rankingItems, label) {
   }
   const groupEntries = Array.from(groups.entries()).map(([sourceName, items]) => ({
     sourceName,
+    sourceId: items[0]?.sourceId || '',
     isDigital: /kindle|電子書籍/i.test(sourceName),
     items: items.sort((a, b) => Number(a.metricValue || 0) - Number(b.metricValue || 0)).slice(0, 10),
   }));
@@ -277,12 +296,14 @@ function buildRankingCard(rankingItems, label) {
     return cols;
   }).join('');
 
-  // ヘッダー行（Kindle列は電子書籍バッジ付き）
+  // ヘッダー行（Kindle列は電子書籍バッジ付き + 最終取得日）
   const headerCells = groupEntries
     .map((g) => {
       const badge = g.isDigital ? '<span class="digital-badge">電子</span>' : '';
+      const fetchedLabel = formatFetchedAt((sourceFetchedAt || {})[g.sourceId]);
+      const fetchedHtml = fetchedLabel ? `<span class="fetched-at">${escapeHtml(fetchedLabel)}</span>` : '';
       const cls = g.isDigital ? 'ranking-group-label ranking-group-digital' : 'ranking-group-label';
-      return `<th class="${cls}" colspan="2">${escapeHtml(g.sourceName)}${badge}</th>`;
+      return `<th class="${cls}" colspan="2">${escapeHtml(g.sourceName)}${badge}${fetchedHtml}</th>`;
     })
     .join('<th class="ranking-col-divider"></th>');
 
@@ -318,8 +339,13 @@ function buildRankingCard(rankingItems, label) {
   `;
 }
 
-function buildDealsCard(dealsItems) {
+function buildDealsCard(dealsItems, sourceFetchedAt) {
   if (dealsItems.length === 0) return '';
+
+  // 最終取得日（dealsItemsの最初のアイテムのsourceIdから取得）
+  const sourceId = dealsItems[0]?.sourceId || '';
+  const fetchedLabel = formatFetchedAt((sourceFetchedAt || {})[sourceId]);
+  const fetchedHtml = fetchedLabel ? `<span class="fetched-at">${escapeHtml(fetchedLabel)}</span>` : '';
 
   // 3列グリッドで表示
   const cols = 3;
@@ -342,7 +368,7 @@ function buildDealsCard(dealsItems) {
   return `
     <article class="feed-card deals-card">
       <div class="card-meta">
-        <span class="meta-pill deals-pill">Kindle 日替わりセール</span>
+        <span class="meta-pill deals-pill">Kindle 日替わりセール</span>${fetchedHtml}
       </div>
       <table class="deals-table">
         <tbody>${rows.join('')}</tbody>
@@ -353,6 +379,8 @@ function buildDealsCard(dealsItems) {
 
 function renderFeed(run) {
   const materials = run?.payload?.materials || [];
+  const sourceFetchedAt = state.snapshot?.sourceFetchedAt || {};
+
   if (materials.length === 0) {
     feedGridEl.innerHTML = '<article class="empty-card">まだ最新情報がありません。Refreshで収集できます。</article>';
     return;
@@ -366,7 +394,7 @@ function renderFeed(run) {
   // ネット書店（Amazon + 楽天）vs 書店・取次ランキングに分割
   const netStoreItems = rankingItems.filter((item) => item.sourceName && (item.sourceName.includes('Amazon') || item.sourceName.includes('楽天')));
   const bookstoreItems = rankingItems.filter((item) => !item.sourceName || (!item.sourceName.includes('Amazon') && !item.sourceName.includes('楽天')));
-  const rankingCardHtml = buildRankingCard(netStoreItems, 'ネット書店ランキング') + buildRankingCard(bookstoreItems, '書店・取次ランキング');
+  const rankingCardHtml = buildRankingCard(netStoreItems, 'ネット書店ランキング', sourceFetchedAt) + buildRankingCard(bookstoreItems, '書店・取次ランキング', sourceFetchedAt);
 
   // X投稿・記事を統合して3列グリッドにカード化
   const allCardsHtml = nonRankingItems.map((item, index) => {
@@ -396,7 +424,7 @@ function renderFeed(run) {
     `;
   }).join('');
 
-  const dealsCardHtml = buildDealsCard(dealsItems);
+  const dealsCardHtml = buildDealsCard(dealsItems, sourceFetchedAt);
 
   const articlesColHtml = allCardsHtml ? `<div class="feed-col-articles">${allCardsHtml}</div>` : '';
   const rankingsColHtml = rankingCardHtml ? `<div class="feed-col-right">${rankingCardHtml}</div>` : '';

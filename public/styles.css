@@ -318,6 +318,14 @@ body {
   padding: 0 9px;
 }
 
+.fetched-at {
+  font-size: 0.6rem;
+  color: var(--ink-soft);
+  opacity: 0.5;
+  font-weight: 400;
+  margin-left: 6px;
+}
+
 .card-title {
   margin: 0 0 8px;
   font-size: 1.05rem;
