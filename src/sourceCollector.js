@@ -8,6 +8,19 @@ const DEFAULT_CONCURRENCY = Math.max(1, Number(process.env.SOURCE_CONCURRENCY ||
 const DEFAULT_MAX_RESPONSE_BYTES = Math.max(64 * 1024, Number(process.env.SOURCE_MAX_RESPONSE_BYTES || 2 * 1024 * 1024));
 const DEFAULT_USER_AGENT = 'TrendAtelierCollector/0.2 (+https://localhost)';
 
+// ボット検知を回避するためのブラウザUser-Agent一覧（ランダムで使用）
+const BROWSER_USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+];
+
+function randomUserAgent() {
+  return BROWSER_USER_AGENTS[Math.floor(Math.random() * BROWSER_USER_AGENTS.length)];
+}
+
 function truncate(text, max = 180) {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
   if (clean.length <= max) return clean;
@@ -478,11 +491,16 @@ async function collectAmazonRanking(source, context) {
 
   for (const url of urls) {
     try {
+      // ランダムな待ち時間（1〜3秒）で人間らしいアクセス間隔を再現
+      const delay = 1000 + Math.floor(Math.random() * 2000);
+      await new Promise((r) => setTimeout(r, delay));
+
       const html = await fetchText(url, {
         timeoutMs: context.timeoutMs,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120',
-          'Accept-Language': 'ja-JP,ja;q=0.9',
+          'User-Agent': randomUserAgent(),
+          'Accept-Language': 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Referer': 'https://www.amazon.co.jp/',
         },
       });
 
@@ -542,7 +560,10 @@ function parseKinseriDeals(html, limit) {
 async function collectKinseriDeals(source, context) {
   const html = await fetchText(source.url, {
     timeoutMs: context.timeoutMs,
-    headers: { 'Accept-Language': 'ja,en-US;q=0.9' },
+    headers: {
+      'User-Agent': randomUserAgent(),
+      'Accept-Language': 'ja,en-US;q=0.9',
+    },
   });
   const entries = parseKinseriDeals(html, Number(source.itemLimit || 20));
   return entries.map((entry) =>
