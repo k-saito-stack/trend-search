@@ -28,11 +28,14 @@ function truncate(text, max = 180) {
 }
 
 function normalizeUrl(rawUrl) {
-  const fallback = String(rawUrl || '').trim();
-  if (!fallback) return '';
+  const value = String(rawUrl || '').trim();
+  if (!value) return '';
 
   try {
-    const parsed = new URL(fallback);
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return '';
+    }
     parsed.hash = '';
     parsed.searchParams.delete('utm_source');
     parsed.searchParams.delete('utm_medium');
@@ -41,7 +44,7 @@ function normalizeUrl(rawUrl) {
     parsed.searchParams.delete('utm_content');
     return parsed.toString();
   } catch {
-    return fallback;
+    return '';
   }
 }
 

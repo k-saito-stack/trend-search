@@ -21,8 +21,11 @@ const HOST = process.env.HOST || '127.0.0.1';
 const PUBLIC_DIR = path.resolve(process.cwd(), 'public');
 const MAX_BODY_BYTES = 1024 * 1024;
 const RUN_API_TOKEN = String(process.env.RUN_API_TOKEN || '').trim();
-const RUN_AUTH_PROXY_HEADER = String(process.env.RUN_AUTH_PROXY_HEADER || '').trim().toLowerCase();
 const RUN_MIN_INTERVAL_MS = Math.max(1000, Number(process.env.RUN_MIN_INTERVAL_MS || 30_000));
+
+if (!RUN_API_TOKEN) {
+  throw new Error('RUN_API_TOKEN は必須です。.env に設定してください。');
+}
 
 ensureDataFiles();
 
@@ -131,25 +134,11 @@ function parseBearerToken(req) {
   return match ? match[1].trim() : '';
 }
 
-function getProxyAuthValue(req) {
-  if (!RUN_AUTH_PROXY_HEADER) return '';
-  const value = req.headers[RUN_AUTH_PROXY_HEADER];
-  if (Array.isArray(value)) {
-    return String(value[0] || '').trim();
-  }
-  return String(value || '').trim();
-}
-
 function secureEqual(a, b) {
   const left = Buffer.from(String(a || ''), 'utf8');
   const right = Buffer.from(String(b || ''), 'utf8');
   if (left.length !== right.length) return false;
   return crypto.timingSafeEqual(left, right);
-}
-
-function isLoopbackAddress(address) {
-  const value = String(address || '').toLowerCase();
-  return value === '127.0.0.1' || value === '::1' || value === '::ffff:127.0.0.1';
 }
 
 function isSameOriginRequest(req) {
@@ -168,13 +157,7 @@ function isSameOriginRequest(req) {
 }
 
 function getRunAuthMode() {
-  if (RUN_API_TOKEN) {
-    return 'token';
-  }
-  if (RUN_AUTH_PROXY_HEADER) {
-    return 'proxy_header';
-  }
-  return 'loopback_only';
+  return 'token_required';
 }
 
 function authorizeRunRequest(req) {
@@ -187,15 +170,11 @@ function authorizeRunRequest(req) {
     };
   }
 
-  if (RUN_API_TOKEN) {
-    const bearerToken = parseBearerToken(req);
-    const headerToken = String(req.headers['x-run-token'] || '').trim();
-    const providedToken = bearerToken || headerToken;
+  const bearerToken = parseBearerToken(req);
+  const headerToken = String(req.headers['x-run-token'] || '').trim();
+  const providedToken = bearerToken || headerToken;
 
-    if (providedToken && secureEqual(providedToken, RUN_API_TOKEN)) {
-      return { ok: true };
-    }
-
+  if (!providedToken || !secureEqual(providedToken, RUN_API_TOKEN)) {
     return {
       ok: false,
       statusCode: 401,
@@ -204,28 +183,7 @@ function authorizeRunRequest(req) {
     };
   }
 
-  if (RUN_AUTH_PROXY_HEADER) {
-    if (getProxyAuthValue(req)) {
-      return { ok: true };
-    }
-    return {
-      ok: false,
-      statusCode: 401,
-      error: `認証済みヘッダー(${RUN_AUTH_PROXY_HEADER})が必要です`,
-      code: 'RUN_AUTH_REQUIRED',
-    };
-  }
-
-  if (isLoopbackAddress(req.socket?.remoteAddress)) {
-    return { ok: true };
-  }
-
-  return {
-    ok: false,
-    statusCode: 401,
-    error: 'loopback 以外からの実行には RUN_API_TOKEN か RUN_AUTH_PROXY_HEADER が必要です',
-    code: 'RUN_AUTH_REQUIRED',
-  };
+  return { ok: true };
 }
 
 function checkManualRunRateLimit() {
@@ -321,6 +279,7 @@ async function handleApi(req, res, urlObj) {
     }
 
     await parseRequestBody(req);
+    const previousStartedAt = manualRunState.lastStartedAt;
     manualRunState.lastStartedAt = Date.now();
     manualRunState.inFlight = (async () => {
       const theme = readPrimaryTheme();
@@ -330,6 +289,16 @@ async function handleApi(req, res, urlObj) {
     let run;
     try {
       run = await manualRunState.inFlight;
+    } catch (error) {
+      if (error?.code === 'THEME_RUN_IN_PROGRESS') {
+        manualRunState.lastStartedAt = previousStartedAt;
+        sendJson(res, 409, {
+          error: '他の実行が進行中です。完了後に再実行してください',
+          code: 'RUN_ALREADY_RUNNING',
+        });
+        return;
+      }
+      throw error;
     } finally {
       manualRunState.inFlight = null;
     }

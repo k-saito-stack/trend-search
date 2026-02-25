@@ -45,6 +45,10 @@ function startDailyScheduler(options = {}) {
         await runTheme(theme, options);
         log(`[scheduler] ${theme.name} の収集が完了`);
       } catch (error) {
+        if (error?.code === 'THEME_RUN_IN_PROGRESS') {
+          log(`[scheduler] ${theme.name} は他の実行が進行中のためスキップ`);
+          return;
+        }
         log(`[scheduler] ${theme.name} の収集に失敗: ${error.message}`);
       }
     } finally {

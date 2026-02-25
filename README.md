@@ -49,15 +49,17 @@ GitHub の **Actions タブ → Deploy to GitHub Pages → Run workflow** で手
 | `SOURCE_HTTP_TIMEOUT_MS` | 任意 | 外部取得タイムアウト（ms） |
 | `SOURCE_CONCURRENCY` | 任意 | 並列収集数 |
 | `SOURCE_MAX_RESPONSE_BYTES` | 任意 | 外部レスポンス上限（byte） |
-| `RUN_API_TOKEN` | 任意 | `POST /api/run` の共有トークン認証 |
-| `RUN_AUTH_PROXY_HEADER` | 任意 | 逆プロキシ認証済みヘッダー名 |
+| `RUN_API_TOKEN` | **必須** | `POST /api/run` 実行用の共有トークン |
 | `RUN_MIN_INTERVAL_MS` | 任意 | 手動実行の最小間隔（ms、既定 `30000`） |
+| `XAI_TIMEOUT_MS` | 任意 | xAI API タイムアウト（ms、既定 `30000`） |
+| `XAI_RETRY_COUNT` | 任意 | xAI API の再試行回数（既定 `1`） |
 | `RUN_ON_START` | 任意 | `1` のとき起動時に1回実行 |
 
 ## API（ローカル版）
 
 - `GET /api/snapshot`: 現在の topic と最新run
 - `POST /api/run`: 手動Refresh実行（同時実行禁止・レート制限あり）
+  - `RUN_API_TOKEN` が必須（`Authorization: Bearer <token>` または `X-Run-Token: <token>`）
 - `GET /api/runs?limit=10`: 最新履歴
 - `GET /api/sources`: 有効な収集ソース一覧
 - `GET /api/health`: 状態確認

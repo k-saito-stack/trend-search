@@ -58,9 +58,10 @@ SOURCE_ENABLE_X=1
 # SOURCE_HTTP_TIMEOUT_MS=12000
 # SOURCE_CONCURRENCY=4
 # SOURCE_MAX_RESPONSE_BYTES=2097152
-# RUN_API_TOKEN=replace-with-long-random-token
-# RUN_AUTH_PROXY_HEADER=x-forwarded-user
+RUN_API_TOKEN=replace-with-long-random-token
 # RUN_MIN_INTERVAL_MS=30000
+# XAI_TIMEOUT_MS=30000
+# XAI_RETRY_COUNT=1
 PORT=3000
 RUN_ON_START=0
 ```
@@ -89,8 +90,8 @@ Content-Type: application/json
 {}
 ```
 
-- `RUN_API_TOKEN` 設定時: `Authorization: Bearer <token>` または `X-Run-Token: <token>` が必要です。
-- `RUN_AUTH_PROXY_HEADER` 設定時: 指定ヘッダー（例: `x-forwarded-user`）が必要です。
+- `POST /api/run` は常に `Authorization: Bearer <token>` または `X-Run-Token: <token>` が必要です。
+- `RUN_API_TOKEN` が未設定の場合、サーバーは起動しません。
 
 ### 実行履歴
 ```http
@@ -114,6 +115,7 @@ GET /api/health
 - 外部サイト都合で一部ソースが失敗しても、他ソースは継続します。
 - データは `data/trends.json` に保存されます（上限1000件、ローカル版のみ）。
 - `POST /api/run` は同時実行されません。短時間連打時は `429` が返ります。
+- `POST /api/run` は常にトークン認証が必要です。
 
 ## 7. 開発者向け主要ファイル
 

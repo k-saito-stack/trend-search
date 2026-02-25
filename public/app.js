@@ -102,7 +102,7 @@ async function api(path, options = {}) {
 }
 
 function buildRunRequestHeaders() {
-  const token = sessionStorage.getItem(RUN_TOKEN_STORAGE_KEY) || '';
+  const token = localStorage.getItem(RUN_TOKEN_STORAGE_KEY) || '';
   const headers = {
     'X-Requested-With': 'trend-atelier-web',
   };
@@ -112,6 +112,23 @@ function buildRunRequestHeaders() {
   }
 
   return headers;
+}
+
+function isSafeHttpUrl(href) {
+  try {
+    const parsed = new URL(String(href || ''), window.location.href);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function openExternalUrl(href) {
+  if (!isSafeHttpUrl(href)) {
+    notify('不正なURLをブロックしました', true);
+    return;
+  }
+  window.open(href, '_blank', 'noreferrer');
 }
 
 function normalizeRunError(error) {
@@ -144,7 +161,7 @@ async function triggerRunWithAuth() {
       throw new Error('認証トークン未入力のため実行を中止しました。');
     }
 
-    sessionStorage.setItem(RUN_TOKEN_STORAGE_KEY, provided.trim());
+    localStorage.setItem(RUN_TOKEN_STORAGE_KEY, provided.trim());
 
     try {
       return await api('/api/run', {
@@ -154,7 +171,7 @@ async function triggerRunWithAuth() {
       });
     } catch (retryError) {
       if (retryError.code === 'RUN_AUTH_REQUIRED') {
-        sessionStorage.removeItem(RUN_TOKEN_STORAGE_KEY);
+        localStorage.removeItem(RUN_TOKEN_STORAGE_KEY);
         throw new Error('認証トークンが不正です。');
       }
 
@@ -202,7 +219,7 @@ function buildTodaySummary(run) {
 
   // Amazon総合ランキング1位
   const amazonTop = materials.find(
-    (m) => m.sourceKind === 'amazon_bestseller' && Number(m.metricValue) === 1,
+    (m) => (m.sourceKind === 'amazon_ranking' || m.sourceKind === 'amazon_bestseller') && Number(m.metricValue) === 1,
   );
 
   // X投稿：いいね数最多
@@ -438,7 +455,7 @@ function renderFeed(run) {
   feedGridEl.querySelectorAll('.feed-card[data-url]').forEach((card) => {
     card.addEventListener('click', () => {
       const href = card.dataset.url;
-      if (href) window.open(href, '_blank', 'noreferrer');
+      if (href) openExternalUrl(href);
     });
   });
 
@@ -446,7 +463,7 @@ function renderFeed(run) {
   feedGridEl.querySelectorAll('.rank-title-cell[data-url], .rank-cell[data-url]').forEach((cell) => {
     cell.addEventListener('click', () => {
       const href = cell.dataset.url;
-      if (href) window.open(href, '_blank', 'noreferrer');
+      if (href) openExternalUrl(href);
     });
   });
 
@@ -454,7 +471,7 @@ function renderFeed(run) {
   feedGridEl.querySelectorAll('.deals-title-cell[data-url]').forEach((cell) => {
     cell.addEventListener('click', () => {
       const href = cell.dataset.url;
-      if (href) window.open(href, '_blank', 'noreferrer');
+      if (href) openExternalUrl(href);
     });
   });
 }

@@ -1,5 +1,8 @@
 const { ensureArray } = require('./utils');
 
+const XAI_TIMEOUT_MS = Math.max(1000, Number(process.env.XAI_TIMEOUT_MS || 30_000));
+const XAI_RETRY_COUNT = Math.max(0, Number(process.env.XAI_RETRY_COUNT || 1));
+
 function buildSystemPrompt() {
   return `You are a Japanese publishing industry analyst. Use the x_search tool to find popular X posts.
 Return ONLY valid JSON — no markdown, no explanation, no code blocks.
@@ -42,6 +45,46 @@ Return ONLY valid JSON — no markdown, no explanation, no code blocks.
 - 結果が0件でも必ず上記のJSON構造を返す（空配列可）`;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableStatus(status) {
+  return status === 429 || status >= 500;
+}
+
+async function sendResponsesRequest({ apiKey, payload, timeoutMs }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch('https://api.x.ai/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    const text = await response.text();
+    return { response, text };
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      const timeoutError = new Error(`xAI API timeout (${timeoutMs}ms)`);
+      timeoutError.code = 'XAI_TIMEOUT';
+      timeoutError.retryable = true;
+      throw timeoutError;
+    }
+
+    error.retryable = true;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function callResponsesApi({ apiKey, model, queryWithSince }) {
   const payload = {
     model,
@@ -56,22 +99,38 @@ async function callResponsesApi({ apiKey, model, queryWithSince }) {
     temperature: 0.3,
   };
 
-  const response = await fetch('https://api.x.ai/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  const maxAttempt = XAI_RETRY_COUNT + 1;
+  let lastError;
 
-  const text = await response.text();
+  for (let attempt = 1; attempt <= maxAttempt; attempt += 1) {
+    try {
+      const { response, text } = await sendResponsesRequest({
+        apiKey,
+        payload,
+        timeoutMs: XAI_TIMEOUT_MS,
+      });
 
-  if (!response.ok) {
-    throw new Error(`xAI API エラー ${response.status}: ${text.slice(0, 400)}`);
+      if (!response.ok) {
+        const error = new Error(`xAI API エラー ${response.status}: ${text.slice(0, 400)}`);
+        error.status = response.status;
+        error.retryable = isRetryableStatus(response.status);
+        throw error;
+      }
+
+      return text;
+    } catch (error) {
+      lastError = error;
+      const canRetry = attempt < maxAttempt && Boolean(error?.retryable);
+      if (!canRetry) {
+        throw error;
+      }
+
+      const backoffMs = 700 * attempt;
+      await sleep(backoffMs);
+    }
   }
 
-  return text;
+  throw lastError || new Error('xAI API エラー');
 }
 
 function findAssistantText(responseJson) {
