@@ -457,6 +457,18 @@ function isRobotCheck(html) {
   return /Robot Check|captcha|Enter the characters|文字を入力/i.test(html);
 }
 
+function isLikelyPriceText(text) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+
+  const compact = normalized
+    .replace(/^価格\s*[:：]?\s*/i, '')
+    .replace(/^(?:税込|税抜)\s*/i, '')
+    .trim();
+
+  return /^(?:(?:USD|US\$|JPY|JP¥|EUR|GBP|CAD|AUD|HKD|SGD|CNY|RMB|KRW)\s*)?[¥￥$€£]?\s*\d[\d,，]*(?:\.\d+)?\s*(?:円|ドル|USD|JPY|EUR|GBP)?$/i.test(compact);
+}
+
 function parseAmazonRankingPage(html, limit) {
   const results = [];
   const seen = new Set();
@@ -469,13 +481,21 @@ function parseAmazonRankingPage(html, limit) {
     const bodyText = stripTags(body).replace(/\s+/g, ' ').trim();
     const altMatch = body.match(/alt="([^"]+)"/i);
     const altText = altMatch ? stripTags(altMatch[1]).replace(/\s+/g, ' ').trim() : '';
-    const title = truncate(bodyText.length >= 5 ? bodyText : altText, 120);
+
+    let titleCandidate = bodyText;
+    // 価格だけを拾った場合は、画像alt（書名）を優先して救済する
+    if (isLikelyPriceText(bodyText) && altText && !isLikelyPriceText(altText)) {
+      titleCandidate = altText;
+    } else if ((!titleCandidate || titleCandidate.length < 5) && altText) {
+      titleCandidate = altText;
+    }
+    const title = truncate(titleCandidate, 120);
 
     if (!title || title.length < 3) continue;
     if (seen.has(asin)) continue;
     if (/Amazon\.co\.jp|カート|ほしい物リスト|ポイント/i.test(title)) continue;
     if (/マスターカード|クレジットカード|ギフト券|Unlimited|プライム会員|Echo|Kindle端末|Fire\s*(?:TV|タブレット)|Alexa/i.test(title)) continue;
-    if (/^[\s¥￥\d,，.]+円?$/.test(title)) continue;
+    if (isLikelyPriceText(title)) continue;
 
     seen.add(asin);
     results.push({
@@ -846,4 +866,8 @@ async function collectThemeSignals(theme, options = {}) {
 
 module.exports = {
   collectThemeSignals,
+  _private: {
+    parseAmazonRankingPage,
+    isLikelyPriceText,
+  },
 };
