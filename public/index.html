@@ -24,8 +24,7 @@
     <section id="authGate" class="auth-gate">
       <div class="auth-card" role="region" aria-live="polite">
         <p class="auth-kicker">社内限定アクセス</p>
-        <h1 class="auth-title">Googleアカウントでログインしてください</h1>
-        <p id="authMessage" class="auth-message">このページは社内アカウント専用です。</p>
+        <p id="authMessage" class="auth-message" hidden></p>
         <p id="authUser" class="auth-user" hidden></p>
         <div class="auth-actions">
           <button id="googleSignInBtn" class="refresh-btn" type="button">Googleでログイン</button>
@@ -37,7 +36,7 @@
     <main id="appMain" class="page-shell" hidden>
       <section class="hero">
         <p class="hero-kicker">Today's InSaito</p>
-        <h1 id="todaySummary" class="hero-summary">今日の出版業界シグナルを準備しています。</h1>
+        <h1 id="todaySummary" class="hero-summary">今日の出版業界のニュースを準備しています。</h1>
         <div class="hero-controls">
           <button id="refreshBtn" class="refresh-btn" type="button">最新のニュースを集める</button>
           <button id="memberSignOutBtn" class="refresh-btn auth-signout-btn" type="button" hidden>ログアウト</button>

@@ -73,7 +73,15 @@ function isAllowedCompanyEmail(email) {
 function showAuthGate(message, options = {}) {
   if (!authGateEl) return;
   authGateEl.hidden = false;
-  if (authMessageEl) authMessageEl.textContent = message || 'ログインしてください。';
+  if (authMessageEl) {
+    if (message) {
+      authMessageEl.textContent = message;
+      authMessageEl.hidden = false;
+    } else {
+      authMessageEl.textContent = '';
+      authMessageEl.hidden = true;
+    }
+  }
   if (authUserEl) {
     if (options.userEmail) {
       authUserEl.textContent = `現在のアカウント: ${options.userEmail}`;
@@ -370,7 +378,7 @@ async function handleAuthStateChanged(user) {
   if (!user) {
     state.snapshot = null;
     renderAuthOnly(
-      `閲覧するには @${getAllowedEmailDomain()} のGoogleアカウントでログインしてください。`,
+      '',
       { allowSignIn: true, allowSignOut: false },
     );
     return;
@@ -463,7 +471,7 @@ async function initFirebaseAuthMode() {
   });
 
   renderAuthOnly(
-    `閲覧するには @${getAllowedEmailDomain()} のGoogleアカウントでログインしてください。`,
+    '',
     { allowSignIn: true, allowSignOut: false },
   );
 }
@@ -573,7 +581,7 @@ function formatMetric(item) {
 
 function buildTodaySummary(run) {
   if (!run) {
-    return '今日の出版業界シグナルを準備しています。';
+    return '今日の出版業界のニュースを準備しています。';
   }
 
   const materials = run.payload?.materials || [];
