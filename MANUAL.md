@@ -7,7 +7,7 @@
 
 - 表示名: `Today's InSaito`
 - **ローカル版**: 毎日 `08:00 JST` / `16:00 JST` に自動実行 + `Refresh` ボタンで手動実行
-- **GitHub Pages版**: 毎日 `08:00 JST` / `16:00 JST` に GitHub Actions が自動収集・公開（Refreshボタンなし）
+- **GitHub Pages版**: 毎日 `08:00 JST` / `16:00 JST` に GitHub Actions が自動収集・公開（Googleログイン必須、Refreshボタンなし）
 - `08:00 JST`: 全ソース更新（記事 / X / ランキング / セール）
 - `16:00 JST`: 記事 + X を再取得し、ランキング/セールは直近データを維持
 
@@ -71,11 +71,44 @@ RUN_ON_START=0
 ### GitHub Pages版
 
 1. リポジトリ **Settings → Pages** → Source を **「GitHub Actions」** に変更
-2. **Settings → Secrets and variables → Actions** で以下を登録:
-   - **Secrets**: `XAI_API_KEY`（xAI APIキー）
-   - **Variables**: `XAI_MODEL`（例: `grok-4-1-fast-non-reasoning`）、`SOURCE_ENABLE_X`（`1` か `0`）
-3. **Actions タブ → Deploy to GitHub Pages → Run workflow** で初回デプロイ
-4. 以降は毎日 `08:00 JST`（全ソース）と `16:00 JST`（記事+X更新）に自動実行
+2. Firebaseプロジェクトを作成
+3. Firebase Authentication で Googleログインを有効化
+4. Firebase Authentication の Authorized domains に Pagesドメインを追加
+5. Firestoreを作成し、`firestore.rules` を反映
+6. サービスアカウント鍵(JSON)を作成
+7. **Settings → Secrets and variables → Actions** で以下を登録:
+   - **Secrets**
+     - `XAI_API_KEY`（xAI APIキー）
+     - `FIREBASE_SERVICE_ACCOUNT_JSON`（サービスアカウントJSON全文）
+   - **Variables**
+     - `XAI_MODEL`（例: `grok-4-1-fast-non-reasoning`）
+     - `SOURCE_ENABLE_X`（`1` か `0`）
+     - `FIREBASE_API_KEY`
+     - `FIREBASE_AUTH_DOMAIN`
+     - `FIREBASE_PROJECT_ID`
+     - `FIREBASE_APP_ID`
+     - `FIREBASE_STORAGE_BUCKET`（任意）
+     - `FIREBASE_MESSAGING_SENDER_ID`（任意）
+     - `FIREBASE_MEASUREMENT_ID`（任意）
+     - `FIREBASE_SNAPSHOT_DOC_PATH`（任意、既定 `snapshots/latest`）
+     - `APP_ALLOWED_EMAIL_DOMAIN`（任意、既定 `kodansha.co.jp`）
+8. **Actions タブ → Deploy to GitHub Pages → Run workflow** で初回デプロイ
+9. 以降は毎日 `08:00 JST`（全ソース）と `16:00 JST`（記事+X更新）に自動実行
+
+#### Firebase設定の詳細手順（初回のみ）
+
+1. Firebaseコンソールでプロジェクトを作成
+2. **Authentication → Sign-in method → Google** を有効化
+3. **Authentication → Settings → Authorized domains** に、Pagesの実ドメイン（例: `k-saito-stack.github.io`）を追加
+4. **Firestore Database** を作成（リージョンは任意）
+5. **Firestore Database → Rules** に `firestore.rules` の内容を貼り付けて公開
+6. **Project settings → Service accounts → Generate new private key** で鍵JSONを取得
+7. 取得したJSON全文を GitHub Secret `FIREBASE_SERVICE_ACCOUNT_JSON` に登録
+
+> 注意:
+> - サービスアカウントJSONは機密情報です。リポジトリにコミットしないでください。
+> - Firestoreの参照許可は `@kodansha.co.jp` のみです（ルール側で強制）。
+> - `FIREBASE_SNAPSHOT_DOC_PATH` を `snapshots/latest` 以外にする場合は、ルール対象パスも同時に変更してください。
 
 ## 5. API（ローカル版）
 
@@ -114,6 +147,7 @@ GET /api/health
 
 - **ローカル版**: サーバーが `08:00 JST` / `16:00 JST` に起動していないと自動実行されません。
 - **GitHub Pages版**: Actions の `schedule` は数分〜数十分遅延することがあります。
+- **GitHub Pages版**: データは Firestore から読みます。`public/snapshot.json` は配信されません。
 - 外部サイト都合で一部ソースが失敗しても、他ソースは継続します。
 - データは `data/trends.json` に保存されます（上限1000件、ローカル版のみ）。
 - `POST /api/run` は同時実行されません。短時間連打時は `429` が返ります。
@@ -128,5 +162,7 @@ GET /api/health
 - `src/signalDigest.js`: 統合整形
 - `src/scheduler.js`: 08:00 / 16:00 JST スケジュール（ローカル版）
 - `scripts/generateSnapshotForPages.js`: GitHub Pages用スナップショット生成
+- `scripts/publishSnapshotToFirestore.js`: Firestoreへsnapshot公開
+- `firestore.rules`: Firestoreアクセス制御（`@kodansha.co.jp` 限定）
 - `.github/workflows/deploy-pages.yml`: 自動デプロイワークフロー
 - `public/index.html`, `public/app.js`, `public/styles.css`: UI

@@ -56,6 +56,57 @@ body {
   gap: 14px;
 }
 
+.auth-gate {
+  width: min(760px, calc(100% - 24px));
+  margin: clamp(30px, 8vh, 90px) auto 0;
+}
+
+.auth-card {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: linear-gradient(135deg, #fff6e4 0%, #fffdf8 58%, #edf9fd 100%);
+  padding: clamp(20px, 4vw, 34px);
+  display: grid;
+  gap: 12px;
+  box-shadow: 0 18px 42px rgba(25, 34, 54, 0.09);
+}
+
+.auth-kicker {
+  margin: 0;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #9a5f17;
+}
+
+.auth-title {
+  margin: 0;
+  font-family: 'Outfit', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif;
+  font-size: clamp(1.2rem, 2.5vw, 1.65rem);
+  line-height: 1.45;
+}
+
+.auth-message {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+.auth-user {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #245f72;
+  font-weight: 700;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .hero {
   border: 1px solid var(--line);
   border-radius: 28px;
@@ -119,6 +170,16 @@ body {
   margin: 0;
   color: var(--ink-soft);
   font-size: 0.86rem;
+}
+
+.auth-status {
+  color: #245f72;
+  font-weight: 700;
+}
+
+.auth-signout-btn {
+  background: linear-gradient(135deg, #5e6e86, #3f4f69);
+  box-shadow: 0 8px 20px rgba(62, 78, 102, 0.2);
 }
 
 .headline-ribbon {

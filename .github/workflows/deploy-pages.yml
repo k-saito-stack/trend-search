@@ -28,6 +28,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: 依存関係インストール
+        run: npm install
+
       - name: スナップショット生成
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
@@ -35,7 +38,61 @@ jobs:
           SOURCE_ENABLE_X: ${{ vars.SOURCE_ENABLE_X }}
           PAGES_EVENT_NAME: ${{ github.event_name }}
           PAGES_EVENT_SCHEDULE: ${{ github.event.schedule || '' }}
-        run: node scripts/generateSnapshotForPages.js
+        run: npm run build:pages
+
+      - name: Firebase設定値の必須チェック
+        env:
+          FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+        run: |
+          for name in FIREBASE_API_KEY FIREBASE_AUTH_DOMAIN FIREBASE_PROJECT_ID FIREBASE_APP_ID; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required variable: $name"
+              exit 1
+            fi
+          done
+
+      - name: Firebaseフロント設定ファイル生成
+        env:
+          FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ vars.FIREBASE_MESSAGING_SENDER_ID }}
+          FIREBASE_MEASUREMENT_ID: ${{ vars.FIREBASE_MEASUREMENT_ID }}
+          APP_ALLOWED_EMAIL_DOMAIN: ${{ vars.APP_ALLOWED_EMAIL_DOMAIN }}
+          FIREBASE_SNAPSHOT_DOC_PATH: ${{ vars.FIREBASE_SNAPSHOT_DOC_PATH }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const config = {
+            apiKey: process.env.FIREBASE_API_KEY,
+            authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            appId: process.env.FIREBASE_APP_ID,
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined,
+            messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || undefined,
+            measurementId: process.env.FIREBASE_MEASUREMENT_ID || undefined,
+          };
+          const app = {
+            allowedEmailDomain: process.env.APP_ALLOWED_EMAIL_DOMAIN || 'kodansha.co.jp',
+            snapshotDocPath: process.env.FIREBASE_SNAPSHOT_DOC_PATH || 'snapshots/latest',
+          };
+          const text = `window.__FIREBASE_CONFIG__ = ${JSON.stringify(config, null, 2)};\nwindow.__APP_AUTH_CONFIG__ = ${JSON.stringify(app, null, 2)};\n`;
+          fs.writeFileSync('public/firebase-config.js', text, 'utf8');
+          NODE
+
+      - name: Firestoreへ最新スナップショット公開
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_SNAPSHOT_DOC_PATH: ${{ vars.FIREBASE_SNAPSHOT_DOC_PATH }}
+        run: npm run publish:firestore
+
+      - name: 公開アーティファクトから snapshot.json を除外
+        run: rm -f public/snapshot.json
 
       - uses: actions/configure-pages@v5
 

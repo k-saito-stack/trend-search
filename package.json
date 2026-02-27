@@ -8,7 +8,11 @@
     "dev": "node --watch server.js",
     "test": "node --test",
     "demo:seed": "node scripts/seedDemoData.js",
-    "build:pages": "node scripts/generateSnapshotForPages.js"
+    "build:pages": "node scripts/generateSnapshotForPages.js",
+    "publish:firestore": "node scripts/publishSnapshotToFirestore.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.6.0"
   },
   "engines": {
     "node": ">=20"

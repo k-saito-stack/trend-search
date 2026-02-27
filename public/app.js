@@ -1,9 +1,23 @@
 const state = {
   snapshot: null,
   isStaticMode: false,
+  useFirebaseAuthMode: false,
+  firebaseAuth: null,
+  firestore: null,
+  authProvider: null,
 };
 const RUN_TOKEN_STORAGE_KEY = 'trend_atelier_run_token';
+const DEFAULT_ALLOWED_EMAIL_DOMAIN = 'kodansha.co.jp';
+const DEFAULT_SNAPSHOT_DOC_PATH = 'snapshots/latest';
 
+const appMainEl = document.getElementById('appMain');
+const authGateEl = document.getElementById('authGate');
+const authMessageEl = document.getElementById('authMessage');
+const authUserEl = document.getElementById('authUser');
+const googleSignInBtnEl = document.getElementById('googleSignInBtn');
+const googleSignOutBtnEl = document.getElementById('googleSignOutBtn');
+const memberSignOutBtnEl = document.getElementById('memberSignOutBtn');
+const authStatusEl = document.getElementById('authStatus');
 const refreshBtnEl = document.getElementById('refreshBtn');
 const todaySummaryEl = document.getElementById('todaySummary');
 const lastUpdatedEl = document.getElementById('lastUpdated');
@@ -21,6 +35,77 @@ const tokenModalErrorEl = document.getElementById('tokenModalError');
 const tokenModalCancelEl = document.getElementById('tokenModalCancel');
 
 let tokenModalResolver = null;
+
+function getAppAuthConfig() {
+  const raw = window.__APP_AUTH_CONFIG__;
+  if (!raw || typeof raw !== 'object') return {};
+  return raw;
+}
+
+function getAllowedEmailDomain() {
+  const value = String(getAppAuthConfig().allowedEmailDomain || DEFAULT_ALLOWED_EMAIL_DOMAIN).trim().toLowerCase();
+  return value || DEFAULT_ALLOWED_EMAIL_DOMAIN;
+}
+
+function getSnapshotDocPath() {
+  const value = String(getAppAuthConfig().snapshotDocPath || DEFAULT_SNAPSHOT_DOC_PATH).trim();
+  return value || DEFAULT_SNAPSHOT_DOC_PATH;
+}
+
+function isValidFirestoreDocPath(path) {
+  if (!path) return false;
+  const parts = path.split('/').filter(Boolean);
+  return parts.length >= 2 && parts.length % 2 === 0;
+}
+
+function isFirebaseConfigured() {
+  const config = window.__FIREBASE_CONFIG__;
+  if (!config || typeof config !== 'object') return false;
+  return Boolean(config.apiKey && config.authDomain && config.projectId && config.appId);
+}
+
+function isAllowedCompanyEmail(email) {
+  const value = String(email || '').trim().toLowerCase();
+  if (!value.includes('@')) return false;
+  return value.endsWith(`@${getAllowedEmailDomain()}`);
+}
+
+function showAuthGate(message, options = {}) {
+  if (!authGateEl) return;
+  authGateEl.hidden = false;
+  if (authMessageEl) authMessageEl.textContent = message || 'ログインしてください。';
+  if (authUserEl) {
+    if (options.userEmail) {
+      authUserEl.textContent = `現在のアカウント: ${options.userEmail}`;
+      authUserEl.hidden = false;
+    } else {
+      authUserEl.textContent = '';
+      authUserEl.hidden = true;
+    }
+  }
+  if (googleSignInBtnEl) googleSignInBtnEl.hidden = !options.allowSignIn;
+  if (googleSignOutBtnEl) googleSignOutBtnEl.hidden = !options.allowSignOut;
+}
+
+function hideAuthGate() {
+  if (!authGateEl) return;
+  authGateEl.hidden = true;
+}
+
+function setAppVisible(visible) {
+  if (appMainEl) appMainEl.hidden = !visible;
+}
+
+function updateSignedInStatus(email) {
+  const value = String(email || '').trim();
+  if (authStatusEl) {
+    authStatusEl.hidden = !value;
+    authStatusEl.textContent = value ? `ログイン中: ${value}` : '';
+  }
+  if (memberSignOutBtnEl) {
+    memberSignOutBtnEl.hidden = !value;
+  }
+}
 
 function isTokenModalReady() {
   return Boolean(
@@ -214,6 +299,173 @@ function normalizeRunError(error) {
   }
 
   return error;
+}
+
+function toAuthErrorMessage(error) {
+  const code = String(error?.code || '');
+  if (code === 'auth/popup-closed-by-user') {
+    return 'ログインがキャンセルされました。';
+  }
+  if (code === 'auth/popup-blocked') {
+    return 'ポップアップがブロックされました。ブラウザ設定を確認してください。';
+  }
+  if (code === 'auth/network-request-failed') {
+    return 'ネットワークエラーが発生しました。時間をおいて再試行してください。';
+  }
+  if (code === 'auth/unauthorized-domain') {
+    return 'このドメインはFirebase認証で未許可です。管理者設定が必要です。';
+  }
+  return error?.message || 'ログイン処理でエラーが発生しました。';
+}
+
+async function signInWithGoogle() {
+  if (!state.firebaseAuth || !state.authProvider) {
+    throw new Error('認証の初期化が未完了です。');
+  }
+  try {
+    await state.firebaseAuth.signInWithPopup(state.authProvider);
+  } catch (error) {
+    if (String(error?.code || '') === 'auth/popup-blocked') {
+      await state.firebaseAuth.signInWithRedirect(state.authProvider);
+      return;
+    }
+    throw error;
+  }
+}
+
+async function signOutGoogle() {
+  if (!state.firebaseAuth) return;
+  await state.firebaseAuth.signOut();
+}
+
+function renderAuthOnly(message, options = {}) {
+  setAppVisible(false);
+  updateSignedInStatus('');
+  showAuthGate(message, options);
+}
+
+async function loadSnapshotFromFirestore() {
+  const docPath = getSnapshotDocPath();
+  if (!isValidFirestoreDocPath(docPath)) {
+    throw new Error(`Firestoreドキュメントパスが不正です: ${docPath}`);
+  }
+  if (!state.firestore) {
+    throw new Error('Firestoreが初期化されていません。');
+  }
+
+  const doc = await state.firestore.doc(docPath).get();
+  if (!doc.exists) {
+    throw new Error('最新データがまだ公開されていません。');
+  }
+  const snapshot = doc.data();
+  if (!snapshot || typeof snapshot !== 'object') {
+    throw new Error('最新データの形式が不正です。');
+  }
+
+  state.snapshot = snapshot;
+  state.isStaticMode = true;
+}
+
+async function handleAuthStateChanged(user) {
+  if (!user) {
+    state.snapshot = null;
+    renderAuthOnly(
+      `閲覧するには @${getAllowedEmailDomain()} のGoogleアカウントでログインしてください。`,
+      { allowSignIn: true, allowSignOut: false },
+    );
+    return;
+  }
+
+  const email = String(user.email || '').trim();
+  if (!email || !isAllowedCompanyEmail(email) || !user.emailVerified) {
+    const deniedReason = !email
+      ? 'メールアドレスを確認できないため'
+      : (!isAllowedCompanyEmail(email)
+        ? `@${getAllowedEmailDomain()} 以外のアカウントのため`
+        : 'メール未確認アカウントのため');
+    notify(`${deniedReason}、アクセスできません。`, true);
+    await signOutGoogle();
+    renderAuthOnly(
+      `このページは @${getAllowedEmailDomain()} アカウント専用です。`,
+      { allowSignIn: true, allowSignOut: false, userEmail: email },
+    );
+    return;
+  }
+
+  updateSignedInStatus(email);
+  hideAuthGate();
+  setAppVisible(true);
+  showSkeletons();
+
+  try {
+    await loadSnapshotFromFirestore();
+    render();
+  } catch (error) {
+    feedGridEl.innerHTML = `<article class="empty-card">${escapeHtml(error.message || 'データ読込に失敗しました。')}</article>`;
+    notify(error.message || 'データ読込に失敗しました。', true);
+  }
+}
+
+async function initFirebaseAuthMode() {
+  if (!isFirebaseConfigured()) {
+    throw new Error('Firebase設定が不足しています。');
+  }
+  if (!window.firebase) {
+    throw new Error('Firebaseライブラリの読み込みに失敗しました。');
+  }
+
+  if (!window.firebase.apps.length) {
+    window.firebase.initializeApp(window.__FIREBASE_CONFIG__);
+  }
+
+  state.firebaseAuth = window.firebase.auth();
+  state.firestore = window.firebase.firestore();
+  state.isStaticMode = true;
+  state.authProvider = new window.firebase.auth.GoogleAuthProvider();
+  state.authProvider.setCustomParameters({
+    hd: getAllowedEmailDomain(),
+    prompt: 'select_account',
+  });
+  if (refreshBtnEl) refreshBtnEl.style.display = 'none';
+
+  if (googleSignInBtnEl) {
+    googleSignInBtnEl.addEventListener('click', async () => {
+      try {
+        await signInWithGoogle();
+      } catch (error) {
+        notify(toAuthErrorMessage(error), true);
+      }
+    });
+  }
+
+  if (googleSignOutBtnEl) {
+    googleSignOutBtnEl.addEventListener('click', async () => {
+      try {
+        await signOutGoogle();
+      } catch (error) {
+        notify(toAuthErrorMessage(error), true);
+      }
+    });
+  }
+
+  if (memberSignOutBtnEl) {
+    memberSignOutBtnEl.addEventListener('click', async () => {
+      try {
+        await signOutGoogle();
+      } catch (error) {
+        notify(toAuthErrorMessage(error), true);
+      }
+    });
+  }
+
+  state.firebaseAuth.onAuthStateChanged((user) => {
+    void handleAuthStateChanged(user);
+  });
+
+  renderAuthOnly(
+    `閲覧するには @${getAllowedEmailDomain()} のGoogleアカウントでログインしてください。`,
+    { allowSignIn: true, allowSignOut: false },
+  );
 }
 
 async function triggerRunWithAuth() {
@@ -604,23 +856,20 @@ function render() {
 }
 
 async function loadSnapshot() {
-  // まず snapshot.json を試みる（GitHub Pages静的モード）
-  try {
-    const res = await fetch('snapshot.json');
-    if (res.ok) {
-      state.snapshot = await res.json();
-      state.isStaticMode = true;
-      return;
-    }
-  } catch (_) {
-    // fallthrough to API mode
+  if (state.useFirebaseAuthMode) {
+    await loadSnapshotFromFirestore();
+    return;
   }
-  // 失敗したら /api/snapshot へ（ローカルAPIモード）
+
+  // ローカルAPIモード
   state.snapshot = await api('/api/snapshot');
   state.isStaticMode = false;
 }
 
 async function refresh() {
+  if (state.useFirebaseAuthMode) {
+    return;
+  }
   const originalText = refreshBtnEl.textContent;
   refreshBtnEl.disabled = true;
   refreshBtnEl.textContent = 'Refreshing...';
@@ -640,11 +889,30 @@ async function refresh() {
   }
 }
 
-refreshBtnEl.addEventListener('click', () => {
-  void refresh();
-});
+if (refreshBtnEl) {
+  refreshBtnEl.addEventListener('click', () => {
+    void refresh();
+  });
+}
 
 (async function init() {
+  state.useFirebaseAuthMode = isFirebaseConfigured();
+
+  if (state.useFirebaseAuthMode) {
+    try {
+      await initFirebaseAuthMode();
+    } catch (error) {
+      renderAuthOnly(
+        '認証初期化に失敗しました。管理者に設定内容をご確認ください。',
+        { allowSignIn: false, allowSignOut: false },
+      );
+      notify(error.message || '認証初期化に失敗しました。', true);
+    }
+    return;
+  }
+
+  setAppVisible(true);
+  hideAuthGate();
   showSkeletons();
   try {
     await loadSnapshot();

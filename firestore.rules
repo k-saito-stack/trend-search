@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isKodanshaUser() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email is string
+        && request.auth.token.email.matches('.*@kodansha\\.co\\.jp$');
+    }
+
+    // GitHub Pagesから読む公開データ
+    match /snapshots/{docId} {
+      allow read: if isKodanshaUser();
+      allow write: if false;
+    }
+
+    // 明示許可していない全パスを拒否
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

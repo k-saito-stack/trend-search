@@ -21,13 +21,28 @@
     <div class="bg-noise" aria-hidden="true"></div>
     <canvas id="bgCanvas" class="bg-canvas" aria-hidden="true"></canvas>
 
-    <main class="page-shell">
+    <section id="authGate" class="auth-gate">
+      <div class="auth-card" role="region" aria-live="polite">
+        <p class="auth-kicker">社内限定アクセス</p>
+        <h1 class="auth-title">Googleアカウントでログインしてください</h1>
+        <p id="authMessage" class="auth-message">このページは社内アカウント専用です。</p>
+        <p id="authUser" class="auth-user" hidden></p>
+        <div class="auth-actions">
+          <button id="googleSignInBtn" class="refresh-btn" type="button">Googleでログイン</button>
+          <button id="googleSignOutBtn" class="refresh-btn auth-signout-btn" type="button" hidden>ログアウト</button>
+        </div>
+      </div>
+    </section>
+
+    <main id="appMain" class="page-shell" hidden>
       <section class="hero">
         <p class="hero-kicker">Today's InSaito</p>
         <h1 id="todaySummary" class="hero-summary">今日の出版業界シグナルを準備しています。</h1>
         <div class="hero-controls">
           <button id="refreshBtn" class="refresh-btn" type="button">最新のニュースを集める</button>
+          <button id="memberSignOutBtn" class="refresh-btn auth-signout-btn" type="button" hidden>ログアウト</button>
           <p id="lastUpdated" class="last-updated"></p>
+          <p id="authStatus" class="last-updated auth-status" hidden></p>
         </div>
         <div class="headline-ribbon" aria-hidden="true">
           <div class="headline-track">
@@ -69,6 +84,10 @@
       </div>
     </div>
 
+    <script src="firebase-config.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" defer></script>
     <script src="app.js" defer></script>
   </body>
 </html>
