@@ -176,6 +176,18 @@ function initScrollAnimation() {
   });
 }
 
+function prefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function nextFrame() {
+  return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
 function escapeHtml(text) {
   return String(text)
     .replaceAll('&', '&amp;')
@@ -375,12 +387,25 @@ async function loadSnapshotFromFirestore() {
 }
 
 async function handleAuthStateChanged(user) {
+  const wasAppVisible = appMainEl && !appMainEl.hidden;
+
   if (!user) {
     state.snapshot = null;
-    renderAuthOnly(
-      '',
-      { allowSignIn: true, allowSignOut: false },
-    );
+    updateSignedInStatus('');
+
+    if (wasAppVisible && !prefersReducedMotion()) {
+      appMainEl.classList.add('morph-out');
+      await delay(300);
+      appMainEl.hidden = true;
+      appMainEl.classList.remove('morph-out');
+      feedGridEl.innerHTML = '';
+      authGateEl.classList.add('morph-in');
+      showAuthGate('', { allowSignIn: true, allowSignOut: false });
+      await nextFrame();
+      authGateEl.classList.remove('morph-in');
+    } else {
+      renderAuthOnly('', { allowSignIn: true, allowSignOut: false });
+    }
     return;
   }
 
@@ -401,9 +426,22 @@ async function handleAuthStateChanged(user) {
   }
 
   updateSignedInStatus(email);
-  hideAuthGate();
-  setAppVisible(true);
-  showSkeletons();
+
+  if (!wasAppVisible && !prefersReducedMotion()) {
+    authGateEl.classList.add('morph-out');
+    await delay(400);
+    authGateEl.hidden = true;
+    authGateEl.classList.remove('morph-out');
+    appMainEl.classList.add('morph-in');
+    appMainEl.hidden = false;
+    showSkeletons();
+    await nextFrame();
+    appMainEl.classList.remove('morph-in');
+  } else {
+    hideAuthGate();
+    setAppVisible(true);
+    showSkeletons();
+  }
 
   try {
     await loadSnapshotFromFirestore();

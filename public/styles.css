@@ -54,11 +54,21 @@ body {
   padding: clamp(18px, 4vw, 46px) clamp(10px, 3vw, 30px) 56px;
   display: grid;
   gap: 14px;
+  transition: opacity 0.35s ease;
+}
+
+.page-shell[hidden] {
+  display: none !important;
 }
 
 .auth-gate {
   width: min(360px, calc(100% - 24px));
   margin: clamp(30px, 8vh, 90px) auto 0;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.auth-gate[hidden] {
+  display: none !important;
 }
 
 .auth-card {
@@ -135,7 +145,6 @@ body {
   font-weight: 700;
   line-height: 1.55;
   letter-spacing: -0.01em;
-  max-width: 980px;
 }
 
 .hero-controls {
@@ -186,6 +195,7 @@ body {
 }
 
 .hero-controls .auth-signout-btn {
+  order: 10;
   margin-left: auto;
   background: transparent;
   box-shadow: none;
@@ -837,6 +847,27 @@ a:focus-visible {
   .token-btn {
     flex: 1;
   }
+}
+
+/* ===== Auth/App morph transitions ===== */
+.auth-gate.morph-out {
+  opacity: 0;
+  transform: scale(2);
+  pointer-events: none;
+}
+
+.auth-gate.morph-in {
+  opacity: 0;
+  transform: scale(2);
+  pointer-events: none;
+}
+
+.page-shell.morph-in {
+  opacity: 0;
+}
+
+.page-shell.morph-out {
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
