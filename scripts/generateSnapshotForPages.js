@@ -18,37 +18,87 @@ function loadDotEnv() {
   }
 }
 
+function resolveRedirectUrl(currentUrl, location) {
+  try {
+    return new URL(String(location || ''), String(currentUrl || '')).toString();
+  } catch {
+    return '';
+  }
+}
+
 /**
  * GitHub Pages上の現在デプロイ済み snapshot.json を取得する。
  * 失敗した場合は null を返す（初回デプロイ時など）。
  */
-function fetchOldSnapshot(pagesUrl) {
+function fetchOldSnapshot(pagesUrl, options = {}) {
+  const targetUrl = String(pagesUrl || '').trim();
+  if (!targetUrl) {
+    return Promise.resolve(null);
+  }
+
+  const visited = options.visited instanceof Set ? options.visited : new Set();
+  const maxRedirects = Number(options.maxRedirects || 5);
+
+  if (visited.has(targetUrl)) {
+    console.log('[cache] 旧snapshot取得スキップ (リダイレクトループ)');
+    return Promise.resolve(null);
+  }
+  if (visited.size >= maxRedirects) {
+    console.log('[cache] 旧snapshot取得スキップ (リダイレクト上限)');
+    return Promise.resolve(null);
+  }
+
+  let requestUrl;
+  try {
+    requestUrl = new URL(targetUrl);
+  } catch {
+    console.log('[cache] 旧snapshot取得スキップ (URL不正)');
+    return Promise.resolve(null);
+  }
+  visited.add(targetUrl);
+
   return new Promise((resolve) => {
-    const client = pagesUrl.startsWith('https') ? https : http;
-    const req = client.get(pagesUrl, { timeout: 15000 }, (res) => {
-      // リダイレクト対応（GitHub Pagesは301/302する場合がある）
-      if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
-        fetchOldSnapshot(res.headers.location).then(resolve);
-        return;
-      }
-      if (res.statusCode !== 200) {
-        console.log(`[cache] 旧snapshot取得スキップ (HTTP ${res.statusCode})`);
-        res.resume();
-        resolve(null);
-        return;
-      }
-      let body = '';
-      res.setEncoding('utf8');
-      res.on('data', (chunk) => { body += chunk; });
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(body));
-        } catch {
-          console.log('[cache] 旧snapshotのパース失敗');
-          resolve(null);
+    const client = requestUrl.protocol === 'https:' ? https : http;
+
+    let req;
+    try {
+      req = client.get(requestUrl, { timeout: 15000 }, (res) => {
+        // リダイレクト対応（GitHub Pagesは301/302/307/308する場合がある）
+        if ((res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) && res.headers.location) {
+          const redirectUrl = resolveRedirectUrl(targetUrl, res.headers.location);
+          res.resume();
+          if (!redirectUrl) {
+            console.log('[cache] 旧snapshot取得スキップ (リダイレクトURL不正)');
+            resolve(null);
+            return;
+          }
+          fetchOldSnapshot(redirectUrl, { visited, maxRedirects }).then(resolve);
+          return;
         }
+        if (res.statusCode !== 200) {
+          console.log(`[cache] 旧snapshot取得スキップ (HTTP ${res.statusCode})`);
+          res.resume();
+          resolve(null);
+          return;
+        }
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => { body += chunk; });
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(body));
+          } catch {
+            console.log('[cache] 旧snapshotのパース失敗');
+            resolve(null);
+          }
+        });
       });
-    });
+    } catch (err) {
+      console.log(`[cache] 旧snapshot取得失敗: ${err.message}`);
+      resolve(null);
+      return;
+    }
+
     req.on('error', (err) => {
       console.log(`[cache] 旧snapshot取得失敗: ${err.message}`);
       resolve(null);
@@ -70,6 +120,9 @@ function buildPagesSnapshotUrl() {
   if (!repo) return '';
   const [owner, name] = repo.split('/');
   if (!owner || !name) return '';
+  if (name.toLowerCase() === `${owner.toLowerCase()}.github.io`) {
+    return `https://${name}/snapshot.json`;
+  }
   return `https://${owner}.github.io/${name}/snapshot.json`;
 }
 
@@ -326,6 +379,7 @@ async function main() {
   };
 
   const outPath = path.resolve(process.cwd(), 'public', 'snapshot.json');
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(snapshot, null, 2) + '\n', 'utf8');
   console.log(`snapshot.json を生成しました: ${outPath}`);
 }
