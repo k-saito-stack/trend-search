@@ -49,7 +49,7 @@
 7. **Settings → Secrets and variables → Actions** で以下を登録:
    - **Secrets**
      - `XAI_API_KEY`（xAI APIキー）
-     - `FIREBASE_SERVICE_ACCOUNT_JSON`（サービスアカウントJSON全文）
+     - `FIREBASE_SERVICE_ACCOUNT_JSON`（サービスアカウントJSON全文。Firestore公開と前回データ引き継ぎに使用）
    - **Variables**
      - `XAI_MODEL`（例: `grok-4-1-fast-non-reasoning`）
      - `SOURCE_ENABLE_X`（`1` か `0`）
@@ -85,6 +85,9 @@
 - Actions の `schedule` は数分〜数十分遅延することがあります。
 - データは Firestore から読みます。`public/snapshot.json` は配信されません。
 - 外部サイト都合で一部ソースが失敗しても、他ソースは継続します。
+- `16:00 JST` 実行時は、Firestore 上の前回スナップショットからランキング/セールデータを引き継ぎます。
+  Firestore にまだデータがない場合（初回など）は全ソース収集にフォールバックします。
+- `FIREBASE_SERVICE_ACCOUNT_JSON` はスナップショットの Firestore 公開と、前回データの取得（16時の引き継ぎ・障害時補完）の両方に使用されます。
 
 ## 6. 開発者向け主要ファイル
 

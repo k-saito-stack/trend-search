@@ -16,7 +16,7 @@
 2. **Settings → Secrets and variables → Actions** で以下を登録:
    - Secrets:
      - `XAI_API_KEY`（xAI APIキー）
-     - `FIREBASE_SERVICE_ACCOUNT_JSON`（FirebaseサービスアカウントJSON全文）
+     - `FIREBASE_SERVICE_ACCOUNT_JSON`（FirebaseサービスアカウントJSON全文。Firestore公開と前回データ引き継ぎに使用）
    - Variables:
      - `XAI_MODEL`（例: `grok-4-1-fast-non-reasoning`）
      - `SOURCE_ENABLE_X`（`1` か `0`）
@@ -52,6 +52,9 @@ GitHub の **Actions タブ → Deploy to GitHub Pages → Run workflow** で手
 毎日 `08:00 JST`（全ソース）と `16:00 JST`（記事+X更新）に自動収集・デプロイされます。
 手動で即時更新したい場合も `workflow_dispatch` から実行できます。
 データは Firestore に公開され、`public/snapshot.json` はPages成果物に含まれません。
+
+`16:00 JST` 実行時は、Firestore 上の前回スナップショットからランキング/セールデータを自動で引き継ぎます。
+ソース取得に失敗した場合も、前回データで補完します。
 
 ## 環境変数
 
