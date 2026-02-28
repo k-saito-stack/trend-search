@@ -4,8 +4,6 @@
   "private": true,
   "description": "Publishing trend dashboard with multi-source collectors (X, news RSS, rankings)",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
     "test": "node --test",
     "demo:seed": "node scripts/seedDemoData.js",
     "build:pages": "node scripts/generateSnapshotForPages.js",

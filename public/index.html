@@ -38,7 +38,6 @@
         <p class="hero-kicker">Today's InSaito</p>
         <h1 id="todaySummary" class="hero-summary">今日の出版業界のニュースを準備しています。</h1>
         <div class="hero-controls">
-          <button id="refreshBtn" class="refresh-btn" type="button">最新のニュースを集める</button>
           <button id="memberSignOutBtn" class="refresh-btn auth-signout-btn" type="button" hidden>ログアウト</button>
           <p id="lastUpdated" class="last-updated"></p>
           <p id="authStatus" class="last-updated auth-status" hidden></p>
@@ -55,33 +54,6 @@
     </main>
 
     <div id="toast" class="toast" aria-live="polite"></div>
-
-    <div id="tokenModal" class="token-modal" hidden>
-      <div class="token-modal-card" role="dialog" aria-modal="true" aria-labelledby="tokenModalTitle">
-        <h2 id="tokenModalTitle" class="token-modal-title">Run API token</h2>
-        <p id="tokenModalMessage" class="token-modal-message">実行用トークンを入力してください。</p>
-        <form id="tokenModalForm" class="token-modal-form">
-          <label for="tokenModalInput" class="token-modal-label">トークン</label>
-          <input
-            id="tokenModalInput"
-            class="token-modal-input"
-            type="password"
-            autocomplete="off"
-            autocapitalize="off"
-            spellcheck="false"
-          />
-          <label class="token-modal-toggle">
-            <input id="tokenModalShow" type="checkbox" />
-            入力内容を表示
-          </label>
-          <p id="tokenModalError" class="token-modal-error" hidden>トークンを入力してください。</p>
-          <div class="token-modal-actions">
-            <button id="tokenModalCancel" class="token-btn token-btn-secondary" type="button">キャンセル</button>
-            <button class="token-btn token-btn-primary" type="submit">保存して実行</button>
-          </div>
-        </form>
-      </div>
-    </div>
 
     <script src="firebase-config.js" defer></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>

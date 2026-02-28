@@ -1,12 +1,9 @@
 const state = {
   snapshot: null,
-  isStaticMode: false,
-  useFirebaseAuthMode: false,
   firebaseAuth: null,
   firestore: null,
   authProvider: null,
 };
-const RUN_TOKEN_STORAGE_KEY = 'trend_atelier_run_token';
 const DEFAULT_ALLOWED_EMAIL_DOMAIN = 'kodansha.co.jp';
 const DEFAULT_SNAPSHOT_DOC_PATH = 'snapshots/latest';
 
@@ -18,7 +15,6 @@ const googleSignInBtnEl = document.getElementById('googleSignInBtn');
 const googleSignOutBtnEl = document.getElementById('googleSignOutBtn');
 const memberSignOutBtnEl = document.getElementById('memberSignOutBtn');
 const authStatusEl = document.getElementById('authStatus');
-const refreshBtnEl = document.getElementById('refreshBtn');
 const todaySummaryEl = document.getElementById('todaySummary');
 const lastUpdatedEl = document.getElementById('lastUpdated');
 const feedGridEl = document.getElementById('feedGrid');
@@ -26,15 +22,6 @@ const headlineAEl = document.getElementById('headlineA');
 const headlineBEl = document.getElementById('headlineB');
 const toastEl = document.getElementById('toast');
 const progressBarEl = document.getElementById('progressBar');
-const tokenModalEl = document.getElementById('tokenModal');
-const tokenModalFormEl = document.getElementById('tokenModalForm');
-const tokenModalInputEl = document.getElementById('tokenModalInput');
-const tokenModalShowEl = document.getElementById('tokenModalShow');
-const tokenModalMessageEl = document.getElementById('tokenModalMessage');
-const tokenModalErrorEl = document.getElementById('tokenModalError');
-const tokenModalCancelEl = document.getElementById('tokenModalCancel');
-
-let tokenModalResolver = null;
 
 function getAppAuthConfig() {
   const raw = window.__APP_AUTH_CONFIG__;
@@ -115,18 +102,6 @@ function updateSignedInStatus(email) {
   }
 }
 
-function isTokenModalReady() {
-  return Boolean(
-    tokenModalEl
-    && tokenModalFormEl
-    && tokenModalInputEl
-    && tokenModalShowEl
-    && tokenModalMessageEl
-    && tokenModalErrorEl
-    && tokenModalCancelEl,
-  );
-}
-
 // ===== プログレスバー =====
 function showProgress() {
   progressBarEl.classList.add('running');
@@ -204,93 +179,6 @@ function notify(message, isError = false) {
   setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
 
-async function api(path, options = {}) {
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(options.headers || {}),
-  };
-
-  const response = await fetch(path, {
-    ...options,
-    headers,
-  });
-
-  const json = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(json.error || 'API request failed');
-    error.status = response.status;
-    error.code = String(json.code || '');
-    error.retryInMs = Number(json.retryInMs || 0);
-    throw error;
-  }
-
-  return json;
-}
-
-function buildRunRequestHeaders() {
-  const token = localStorage.getItem(RUN_TOKEN_STORAGE_KEY) || '';
-  const headers = {
-    'X-Requested-With': 'trend-atelier-web',
-  };
-
-  if (token) {
-    headers['X-Run-Token'] = token;
-  }
-
-  return headers;
-}
-
-function closeTokenModal(result) {
-  if (!isTokenModalReady()) {
-    return;
-  }
-  if (typeof tokenModalResolver !== 'function') {
-    return;
-  }
-  const resolve = tokenModalResolver;
-  tokenModalResolver = null;
-  tokenModalEl.hidden = true;
-  document.body.classList.remove('modal-open');
-  tokenModalInputEl.value = '';
-  tokenModalInputEl.type = 'password';
-  tokenModalShowEl.checked = false;
-  tokenModalErrorEl.hidden = true;
-  tokenModalErrorEl.textContent = '';
-  resolve(result);
-}
-
-function openTokenModal(message = '', errorMessage = '') {
-  if (!isTokenModalReady()) {
-    const fallback = window.prompt(message || 'Run API token を入力してください。');
-    return Promise.resolve(fallback);
-  }
-
-  return new Promise((resolve) => {
-    tokenModalResolver = resolve;
-    tokenModalMessageEl.textContent = message || '実行用トークンを入力してください。';
-    tokenModalErrorEl.hidden = !errorMessage;
-    tokenModalErrorEl.textContent = errorMessage || '';
-    tokenModalEl.hidden = false;
-    document.body.classList.add('modal-open');
-    setTimeout(() => tokenModalInputEl.focus(), 0);
-  });
-}
-
-async function requestRunToken(errorMessage = '') {
-  const provided = await openTokenModal(
-    'Run API token を入力してください。',
-    errorMessage,
-  );
-
-  if (!provided || !provided.trim()) {
-    throw new Error('認証トークン未入力のため実行を中止しました。');
-  }
-
-  const token = provided.trim();
-  localStorage.setItem(RUN_TOKEN_STORAGE_KEY, token);
-  return token;
-}
-
 function isSafeHttpUrl(href) {
   try {
     const parsed = new URL(String(href || ''), window.location.href);
@@ -306,19 +194,6 @@ function openExternalUrl(href) {
     return;
   }
   window.open(href, '_blank', 'noreferrer');
-}
-
-function normalizeRunError(error) {
-  if (error.code === 'RUN_ALREADY_RUNNING') {
-    return new Error('現在収集中です。完了してから再実行してください。');
-  }
-
-  if (error.code === 'RUN_RATE_LIMITED') {
-    const waitSec = Math.max(1, Math.ceil(Number(error.retryInMs || 0) / 1000));
-    return new Error(`実行間隔が短すぎます。${waitSec}秒後に再試行してください。`);
-  }
-
-  return error;
 }
 
 function toAuthErrorMessage(error) {
@@ -383,7 +258,6 @@ async function loadSnapshotFromFirestore() {
   }
 
   state.snapshot = snapshot;
-  state.isStaticMode = true;
 }
 
 async function handleAuthStateChanged(user) {
@@ -466,14 +340,11 @@ async function initFirebaseAuthMode() {
 
   state.firebaseAuth = window.firebase.auth();
   state.firestore = window.firebase.firestore();
-  state.isStaticMode = true;
   state.authProvider = new window.firebase.auth.GoogleAuthProvider();
   state.authProvider.setCustomParameters({
     hd: getAllowedEmailDomain(),
     prompt: 'select_account',
   });
-  if (refreshBtnEl) refreshBtnEl.style.display = 'none';
-
   if (googleSignInBtnEl) {
     googleSignInBtnEl.addEventListener('click', async () => {
       try {
@@ -512,79 +383,6 @@ async function initFirebaseAuthMode() {
     '',
     { allowSignIn: true, allowSignOut: false },
   );
-}
-
-async function triggerRunWithAuth() {
-  const executeRun = () => api('/api/run', {
-    method: 'POST',
-    headers: buildRunRequestHeaders(),
-    body: JSON.stringify({}),
-  });
-
-  try {
-    return await executeRun();
-  } catch (error) {
-    if (error.code !== 'RUN_AUTH_REQUIRED') {
-      throw normalizeRunError(error);
-    }
-  }
-
-  await requestRunToken();
-
-  try {
-    return await executeRun();
-  } catch (retryError) {
-    if (retryError.code !== 'RUN_AUTH_REQUIRED') {
-      throw normalizeRunError(retryError);
-    }
-  }
-
-  localStorage.removeItem(RUN_TOKEN_STORAGE_KEY);
-  await requestRunToken('認証トークンが不正です。もう一度入力してください。');
-
-  try {
-    return await executeRun();
-  } catch (lastError) {
-    if (lastError.code === 'RUN_AUTH_REQUIRED') {
-      localStorage.removeItem(RUN_TOKEN_STORAGE_KEY);
-      throw new Error('認証トークンが不正です。');
-    }
-    throw normalizeRunError(lastError);
-  }
-}
-
-if (isTokenModalReady()) {
-  tokenModalFormEl.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const value = tokenModalInputEl.value.trim();
-    if (!value) {
-      tokenModalErrorEl.hidden = false;
-      tokenModalErrorEl.textContent = 'トークンを入力してください。';
-      tokenModalInputEl.focus();
-      return;
-    }
-    closeTokenModal(value);
-  });
-
-  tokenModalCancelEl.addEventListener('click', () => {
-    closeTokenModal(null);
-  });
-
-  tokenModalEl.addEventListener('click', (event) => {
-    if (event.target === tokenModalEl) {
-      closeTokenModal(null);
-    }
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !tokenModalEl.hidden) {
-      closeTokenModal(null);
-    }
-  });
-
-  tokenModalShowEl.addEventListener('change', () => {
-    tokenModalInputEl.type = tokenModalShowEl.checked ? 'text' : 'password';
-  });
 }
 
 function formatDate(isoDate) {
@@ -893,78 +691,27 @@ function render() {
 
   lastUpdatedEl.textContent = run ? `最終更新: ${formatDate(run.createdAt)}` : '';
 
-  // 静的モード（GitHub Pages）ではRefreshボタンを隠す
-  if (refreshBtnEl) {
-    refreshBtnEl.style.display = state.isStaticMode ? 'none' : '';
-  }
-
   renderFeed(run);
 }
 
-async function loadSnapshot() {
-  if (state.useFirebaseAuthMode) {
-    await loadSnapshotFromFirestore();
-    return;
-  }
-
-  // ローカルAPIモード
-  state.snapshot = await api('/api/snapshot');
-  state.isStaticMode = false;
-}
-
-async function refresh() {
-  if (state.useFirebaseAuthMode) {
-    return;
-  }
-  const originalText = refreshBtnEl.textContent;
-  refreshBtnEl.disabled = true;
-  refreshBtnEl.textContent = 'Refreshing...';
-  showProgress();
-
-  try {
-    await triggerRunWithAuth();
-    await loadSnapshot();
-    render();
-    notify('最新情報を更新しました');
-  } catch (error) {
-    notify(error.message, true);
-  } finally {
-    hideProgress();
-    refreshBtnEl.disabled = false;
-    refreshBtnEl.textContent = originalText;
-  }
-}
-
-if (refreshBtnEl) {
-  refreshBtnEl.addEventListener('click', () => {
-    void refresh();
-  });
-}
-
 (async function init() {
-  state.useFirebaseAuthMode = isFirebaseConfigured();
-
-  if (state.useFirebaseAuthMode) {
-    try {
-      await initFirebaseAuthMode();
-    } catch (error) {
-      renderAuthOnly(
-        '認証初期化に失敗しました。管理者に設定内容をご確認ください。',
-        { allowSignIn: false, allowSignOut: false },
-      );
-      notify(error.message || '認証初期化に失敗しました。', true);
-    }
+  if (!isFirebaseConfigured()) {
+    renderAuthOnly(
+      'Firebase設定が見つかりません。管理者にご確認ください。',
+      { allowSignIn: false, allowSignOut: false },
+    );
+    notify('Firebase設定が見つかりません。', true);
     return;
   }
 
-  setAppVisible(true);
-  hideAuthGate();
-  showSkeletons();
   try {
-    await loadSnapshot();
-    render();
+    await initFirebaseAuthMode();
   } catch (error) {
-    notify(error.message, true);
+    renderAuthOnly(
+      '認証初期化に失敗しました。管理者に設定内容をご確認ください。',
+      { allowSignIn: false, allowSignOut: false },
+    );
+    notify(error.message || '認証初期化に失敗しました。', true);
   }
 })();
 

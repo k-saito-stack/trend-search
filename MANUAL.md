@@ -6,8 +6,7 @@
 テーマは固定で、ユーザーがテーマを選んだり設定を開いたりする必要はありません。
 
 - 表示名: `Today's InSaito`
-- **ローカル版**: 毎日 `08:00 JST` / `16:00 JST` に自動実行 + `Refresh` ボタンで手動実行
-- **GitHub Pages版**: 毎日 `08:00 JST` / `16:00 JST` に GitHub Actions が自動収集・公開（Googleログイン必須、Refreshボタンなし）
+- 毎日 `08:00 JST` / `16:00 JST` に GitHub Actions が自動収集・GitHub Pagesに公開（Googleログイン必須）
 - `08:00 JST`: 全ソース更新（記事 / X / ランキング / セール）
 - `16:00 JST`: 記事 + X を再取得し、ランキング/セールは直近データを維持
 
@@ -30,8 +29,8 @@
 
 ## 3. 画面の使い方
 
-1. 画面を開くと最新runが表示されます。
-2. 日中に更新したい時は `Refresh` を押します（ローカル版のみ）。
+1. 画面を開くとGoogleログイン画面が表示されます。
+2. `@kodansha.co.jp` のGoogleアカウントでログインすると最新データが表示されます。
 3. カードを押すと元記事・元投稿へ遷移します。
 
 表示される主な情報:
@@ -39,36 +38,7 @@
 - トピックタグ
 - ソース混在のフィード（ニュース / レビュー / ランキング / PR / セールなど）
 
-## 4. セットアップ
-
-### ローカル版
-
-```bash
-cp .env.example .env
-# .env を編集して設定
-npm run start
-```
-
-`.env` の設定例:
-
-```env
-XAI_API_KEY=YOUR_XAI_API_KEY
-XAI_MODEL=grok-4-1-fast-non-reasoning
-HOST=127.0.0.1
-SOURCE_ENABLE_X=1
-# ENABLED_SOURCE_IDS=news_publish_general,news_pr_times,ranking_amazon_books
-# SOURCE_HTTP_TIMEOUT_MS=12000
-# SOURCE_CONCURRENCY=4
-# SOURCE_MAX_RESPONSE_BYTES=2097152
-RUN_API_TOKEN=replace-with-long-random-token
-# RUN_MIN_INTERVAL_MS=30000
-# XAI_TIMEOUT_MS=30000
-# XAI_RETRY_COUNT=1
-PORT=3000
-RUN_ON_START=0
-```
-
-### GitHub Pages版
+## 4. セットアップ（GitHub Pages版）
 
 1. リポジトリ **Settings → Pages** → Source を **「GitHub Actions」** に変更
 2. Firebaseプロジェクトを作成
@@ -110,57 +80,18 @@ RUN_ON_START=0
 > - Firestoreの参照許可は `@kodansha.co.jp` のみです（ルール側で強制）。
 > - `FIREBASE_SNAPSHOT_DOC_PATH` を `snapshots/latest` 以外にする場合は、ルール対象パスも同時に変更してください。
 
-## 5. API（ローカル版）
+## 5. 運用メモ
 
-### 現在状態
-```http
-GET /api/snapshot
-```
-
-### 手動実行（Refresh）
-```http
-POST /api/run
-Content-Type: application/json
-
-{}
-```
-
-- `POST /api/run` は常に `Authorization: Bearer <token>` または `X-Run-Token: <token>` が必要です。
-- `RUN_API_TOKEN` が未設定の場合、サーバーは起動しません。
-
-### 実行履歴
-```http
-GET /api/runs?limit=10
-```
-
-### 収集ソース一覧
-```http
-GET /api/sources
-```
-
-### ヘルス
-```http
-GET /api/health
-```
-
-## 6. 運用メモ
-
-- **ローカル版**: サーバーが `08:00 JST` / `16:00 JST` に起動していないと自動実行されません。
-- **GitHub Pages版**: Actions の `schedule` は数分〜数十分遅延することがあります。
-- **GitHub Pages版**: データは Firestore から読みます。`public/snapshot.json` は配信されません。
+- Actions の `schedule` は数分〜数十分遅延することがあります。
+- データは Firestore から読みます。`public/snapshot.json` は配信されません。
 - 外部サイト都合で一部ソースが失敗しても、他ソースは継続します。
-- データは `data/trends.json` に保存されます（上限1000件、ローカル版のみ）。
-- `POST /api/run` は同時実行されません。短時間連打時は `429` が返ります。
-- `POST /api/run` は常にトークン認証が必要です。
 
-## 7. 開発者向け主要ファイル
+## 6. 開発者向け主要ファイル
 
-- `server.js`: APIと静的配信（ローカル版）
-- `src/storage.js`: 固定テーマ管理とrun保存
+- `src/storage.js`: テーマ管理とrun保存
 - `src/sourceCatalog.js`: 収集ソース定義
 - `src/sourceCollector.js`: 並列収集処理
 - `src/signalDigest.js`: 統合整形
-- `src/scheduler.js`: 08:00 / 16:00 JST スケジュール（ローカル版）
 - `scripts/generateSnapshotForPages.js`: GitHub Pages用スナップショット生成
 - `scripts/publishSnapshotToFirestore.js`: Firestoreへsnapshot公開
 - `firestore.rules`: Firestoreアクセス制御（`@kodansha.co.jp` 限定）
