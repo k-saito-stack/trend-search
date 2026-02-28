@@ -1,7 +1,5 @@
 const path = require('node:path');
 const fs = require('node:fs');
-const https = require('node:https');
-const http = require('node:http');
 
 function loadDotEnv() {
   const envPath = path.resolve(process.cwd(), '.env');
@@ -18,112 +16,73 @@ function loadDotEnv() {
   }
 }
 
-function resolveRedirectUrl(currentUrl, location) {
-  try {
-    return new URL(String(location || ''), String(currentUrl || '')).toString();
-  } catch {
-    return '';
-  }
-}
-
 /**
- * GitHub Pages上の現在デプロイ済み snapshot.json を取得する。
+ * Firestore から前回公開済みの snapshot を取得する。
  * 失敗した場合は null を返す（初回デプロイ時など）。
  */
-function fetchOldSnapshot(pagesUrl, options = {}) {
-  const targetUrl = String(pagesUrl || '').trim();
-  if (!targetUrl) {
-    return Promise.resolve(null);
+async function fetchOldSnapshotFromFirestore() {
+  const raw = String(
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+    || process.env.FIREBASE_SERVICE_ACCOUNT_KEY
+    || '',
+  ).trim();
+
+  if (!raw) {
+    console.log('[cache] FIREBASE_SERVICE_ACCOUNT_JSON未設定のためキャッシュスキップ');
+    return null;
   }
 
-  const visited = options.visited instanceof Set ? options.visited : new Set();
-  const maxRedirects = Number(options.maxRedirects || 5);
-
-  if (visited.has(targetUrl)) {
-    console.log('[cache] 旧snapshot取得スキップ (リダイレクトループ)');
-    return Promise.resolve(null);
-  }
-  if (visited.size >= maxRedirects) {
-    console.log('[cache] 旧snapshot取得スキップ (リダイレクト上限)');
-    return Promise.resolve(null);
-  }
-
-  let requestUrl;
+  let serviceAccount;
   try {
-    requestUrl = new URL(targetUrl);
-  } catch {
-    console.log('[cache] 旧snapshot取得スキップ (URL不正)');
-    return Promise.resolve(null);
-  }
-  visited.add(targetUrl);
-
-  return new Promise((resolve) => {
-    const client = requestUrl.protocol === 'https:' ? https : http;
-
-    let req;
     try {
-      req = client.get(requestUrl, { timeout: 15000 }, (res) => {
-        // リダイレクト対応（GitHub Pagesは301/302/307/308する場合がある）
-        if ((res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) && res.headers.location) {
-          const redirectUrl = resolveRedirectUrl(targetUrl, res.headers.location);
-          res.resume();
-          if (!redirectUrl) {
-            console.log('[cache] 旧snapshot取得スキップ (リダイレクトURL不正)');
-            resolve(null);
-            return;
-          }
-          fetchOldSnapshot(redirectUrl, { visited, maxRedirects }).then(resolve);
-          return;
-        }
-        if (res.statusCode !== 200) {
-          console.log(`[cache] 旧snapshot取得スキップ (HTTP ${res.statusCode})`);
-          res.resume();
-          resolve(null);
-          return;
-        }
-        let body = '';
-        res.setEncoding('utf8');
-        res.on('data', (chunk) => { body += chunk; });
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(body));
-          } catch {
-            console.log('[cache] 旧snapshotのパース失敗');
-            resolve(null);
-          }
-        });
+      serviceAccount = JSON.parse(raw);
+    } catch {
+      const decoded = Buffer.from(raw, 'base64').toString('utf8');
+      serviceAccount = JSON.parse(decoded);
+    }
+  } catch {
+    console.log('[cache] サービスアカウントJSONのパース失敗');
+    return null;
+  }
+
+  if (!serviceAccount || typeof serviceAccount !== 'object' || !serviceAccount.project_id) {
+    console.log('[cache] サービスアカウントJSONの形式が不正');
+    return null;
+  }
+
+  if (typeof serviceAccount.private_key === 'string') {
+    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+  }
+
+  const docPath = String(process.env.FIREBASE_SNAPSHOT_DOC_PATH || 'snapshots/latest').trim();
+
+  try {
+    const admin = require('firebase-admin');
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: serviceAccount.project_id,
       });
-    } catch (err) {
-      console.log(`[cache] 旧snapshot取得失敗: ${err.message}`);
-      resolve(null);
-      return;
     }
 
-    req.on('error', (err) => {
-      console.log(`[cache] 旧snapshot取得失敗: ${err.message}`);
-      resolve(null);
-    });
-    req.on('timeout', () => {
-      req.destroy();
-      console.log('[cache] 旧snapshot取得タイムアウト');
-      resolve(null);
-    });
-  });
-}
+    const db = admin.firestore();
+    const doc = await db.doc(docPath).get();
+    if (!doc.exists) {
+      console.log('[cache] Firestoreにまだsnapshotがありません');
+      return null;
+    }
 
-/**
- * GitHub Pages URL を GITHUB_REPOSITORY から自動構築する。
- * 例: "user/repo" → "https://user.github.io/repo/snapshot.json"
- */
-function buildPagesSnapshotUrl() {
-  const repo = process.env.GITHUB_REPOSITORY || '';
-  if (!repo) return '';
-  const [owner, name] = repo.split('/');
-  if (!owner || !name) return '';
-  if (name.toLowerCase() === `${owner.toLowerCase()}.github.io`) {
-    return `https://${name}/snapshot.json`;
+    const data = doc.data();
+    if (!data || typeof data !== 'object') {
+      console.log('[cache] Firestoreのsnapshotが不正な形式です');
+      return null;
+    }
+
+    return data;
+  } catch (err) {
+    console.log(`[cache] Firestore旧snapshot取得失敗: ${err.message}`);
+    return null;
   }
-  return `https://${owner}.github.io/${name}/snapshot.json`;
 }
 
 function normalizeCategoryList(value) {
@@ -281,17 +240,11 @@ async function main() {
   console.log(`モデル: ${model}`);
   console.log(`実行スロット: ${runConfig.slot}`);
 
-  // 1. 旧snapshotを取得（キャッシュ用）
-  const pagesUrl = buildPagesSnapshotUrl();
-  let oldSnapshot = null;
-  if (pagesUrl) {
-    console.log(`[cache] 旧snapshot取得中: ${pagesUrl}`);
-    oldSnapshot = await fetchOldSnapshot(pagesUrl);
-    if (oldSnapshot) {
-      console.log(`[cache] 旧snapshot取得成功 (${oldSnapshot.now || 'unknown'})`);
-    }
-  } else {
-    console.log('[cache] GITHUB_REPOSITORY未設定のためキャッシュスキップ');
+  // 1. 旧snapshotをFirestoreから取得（キャッシュ用）
+  console.log('[cache] Firestoreから旧snapshot取得中...');
+  const oldSnapshot = await fetchOldSnapshotFromFirestore();
+  if (oldSnapshot) {
+    console.log(`[cache] 旧snapshot取得成功 (${oldSnapshot.now || 'unknown'})`);
   }
 
   let effectiveRunConfig = runConfig;

@@ -38,6 +38,8 @@ jobs:
           SOURCE_ENABLE_X: ${{ vars.SOURCE_ENABLE_X }}
           PAGES_EVENT_NAME: ${{ github.event_name }}
           PAGES_EVENT_SCHEDULE: ${{ github.event.schedule || '' }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_SNAPSHOT_DOC_PATH: ${{ vars.FIREBASE_SNAPSHOT_DOC_PATH }}
         run: npm run build:pages
 
       - name: Firebase設定値の必須チェック
