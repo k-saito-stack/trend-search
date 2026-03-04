@@ -213,10 +213,6 @@ function parseHontoRanking(html, limit) {
     const block = hit[1];
     const title = stripTags(block).trim();
     if (!title || title.length < 2) continue;
-    const key = title.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-
     // ① /ebook/pd_ リンクを優先（電子書籍専用ページ）
     const ebookMatch = block.match(/href="(https?:\/\/honto\.jp\/ebook\/pd_[^"]+)"/i);
     // ② /netstore/pd_ リンク（紙書籍商品ページ）
@@ -231,6 +227,10 @@ function parseHontoRanking(html, limit) {
       // 個別URLなし → 書名検索URLを生成
       url = `https://honto.jp/netstore/search.html?search.keyword=${encodeURIComponent(title)}`;
     }
+
+    const key = url ? `u:${url}` : `t:${title.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
 
     results.push({ url, title, summary: `${title}（hontoランキング）` });
   }
