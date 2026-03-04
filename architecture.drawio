@@ -1,0 +1,104 @@
+<mxfile host="app.diagrams.net" modified="2026-03-04T00:00:00.000Z" agent="codex" version="24.7.17" type="device">
+  <diagram id="project-architecture" name="trend-search-main architecture">
+    <mxGraphModel dx="1800" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="zone_internal" value="Internal System (Local Node.js)" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 4;fillColor=none;strokeColor=#999999;fontColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="240" y="20" width="1130" height="520" as="geometry" />
+        </mxCell>
+        <mxCell id="zone_external" value="External Services / Sites" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 4;fillColor=none;strokeColor=#999999;fontColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1390" y="20" width="360" height="430" as="geometry" />
+        </mxCell>
+
+        <mxCell id="browser" value="User Browser&#xa;public/index.html + public/app.js" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="230" width="210" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="server" value="Node.js Server&#xa;server.js" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="230" width="190" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="scheduler" value="Auto Scheduler&#xa;src/scheduler.js&#xa;tick every minute - run at 08:00 JST" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="70" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="env" value="Config Loader&#xa;.env + src/loadEnv.js" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="380" width="240" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="api" value="API Router&#xa;/api/snapshot /api/run /api/runs&#xa;/api/sources /api/health" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="540" y="150" width="260" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="static" value="Static File Serving&#xa;public/*" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="540" y="300" width="260" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="trend_service" value="Trend Execution&#xa;src/trendService.js&#xa;runTheme()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="830" y="220" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="collector" value="Source Collector&#xa;src/sourceCollector.js&#xa;parallel HTTP + dedupe&#xa;honto: URL-priority dedupe" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="120" width="260" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="digest" value="Signal Digest&#xa;src/signalDigest.js&#xa;build clusters/themes/materials" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="280" width="260" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="storage" value="Storage&#xa;src/storage.js&#xa;data/themes.json&#xa;data/trends.json" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="830" y="380" width="250" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="xai" value="xAI Responses API&#xa;(X/Grok x_search)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="60" width="280" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="google_news" value="Google News RSS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="180" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="sites" value="Web/RSS/Ranking Sources&#xa;Amazon, Rakuten, honto, Tohan,&#xa;Yurindo, Yahoo Follow, Kindle deals, etc." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="280" width="280" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" value="GET / + JS/CSS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#555555;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="browser" target="server">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="fetch /api/*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#555555;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="browser" target="api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="route /api/*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#555555;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="server" target="api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="serve public/*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#555555;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="server" target="static">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="POST /api/run (manual)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#555555;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="api" target="trend_service">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="08:00 JST auto run" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="scheduler" target="trend_service">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="collectThemeSignals" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#555555;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="trend_service" target="collector">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="raw signals" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#555555;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="collector" target="digest">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="appendRun()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#555555;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="digest" target="storage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="read latestRun/runs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#555555;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="api" target="storage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" value="read env" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b85450;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="env" target="server">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="X/Grok fetch" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#555555;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="collector" target="xai">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" value="RSS search" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#555555;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="collector" target="google_news">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" value="HTML/RSS collection" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#555555;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="collector" target="sites">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
