@@ -4,10 +4,12 @@
   "private": true,
   "description": "Publishing trend dashboard with multi-source collectors (X, news RSS, rankings)",
   "scripts": {
-    "test": "node --test",
-    "demo:seed": "node scripts/seedDemoData.js",
-    "build:pages": "node scripts/generateSnapshotForPages.js",
-    "publish:firestore": "node scripts/publishSnapshotToFirestore.js"
+    "check:local-env": "node scripts/checkLocalEnv.js",
+    "doctor:local": "node scripts/checkLocalEnv.js --fix",
+    "test": "node scripts/checkLocalEnv.js && node --test",
+    "demo:seed": "node scripts/checkLocalEnv.js && node scripts/seedDemoData.js",
+    "build:pages": "node scripts/checkLocalEnv.js && node scripts/generateSnapshotForPages.js",
+    "publish:firestore": "node scripts/checkLocalEnv.js && node scripts/publishSnapshotToFirestore.js"
   },
   "dependencies": {
     "firebase-admin": "^13.6.0"
