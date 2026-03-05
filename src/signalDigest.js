@@ -127,6 +127,7 @@ function postFromSignal(signal) {
     likes: signal.metricLabel === 'likes' ? Number(signal.metricValue || 0) : 0,
     metricLabel: signal.metricLabel,
     metricValue: Number(signal.metricValue || 0),
+    sourceId: signal.sourceId || '',
     sourceName: signal.sourceName,
     sourceCategory: signal.sourceCategory,
     sourceKind: signal.sourceKind || '',
