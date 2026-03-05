@@ -1,10 +1,26 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const admin = require('firebase-admin');
+const MAX_APPROX_PAYLOAD_BYTES = 900 * 1024;
 
 function isValidFirestoreDocPath(docPath) {
   const parts = String(docPath || '').split('/').filter(Boolean);
   return parts.length >= 2 && parts.length % 2 === 0;
+}
+
+function approxJsonBytes(value) {
+  return Buffer.byteLength(JSON.stringify(value), 'utf8');
+}
+
+function trimLargeFields(payload) {
+  let trimmed = false;
+  if (payload?.latestRun && typeof payload.latestRun === 'object') {
+    if (typeof payload.latestRun.rawText === 'string' && payload.latestRun.rawText.length > 0) {
+      payload.latestRun.rawText = '';
+      trimmed = true;
+    }
+  }
+  return trimmed;
 }
 
 function parseServiceAccountFromEnv() {
@@ -77,6 +93,16 @@ async function main() {
     ...snapshot,
     publishedAt: new Date().toISOString(),
   };
+
+  const approxBefore = approxJsonBytes(payload);
+  if (approxBefore > MAX_APPROX_PAYLOAD_BYTES) {
+    const trimmed = trimLargeFields(payload);
+    const approxAfter = approxJsonBytes(payload);
+    if (!trimmed || approxAfter > MAX_APPROX_PAYLOAD_BYTES) {
+      throw new Error(`snapshot payload が大きすぎます: ${approxAfter} bytes`);
+    }
+    console.warn(`[firestore] payload size trimmed: ${approxBefore} -> ${approxAfter} bytes`);
+  }
 
   await db.doc(docPath).set(payload, { merge: true });
   console.log(`[firestore] snapshot を公開しました: ${docPath}`);

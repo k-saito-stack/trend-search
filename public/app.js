@@ -193,7 +193,7 @@ function openExternalUrl(href) {
     notify('不正なURLをブロックしました', true);
     return;
   }
-  window.open(href, '_blank', 'noreferrer');
+  window.open(href, '_blank', 'noopener,noreferrer');
 }
 
 function toAuthErrorMessage(error) {
