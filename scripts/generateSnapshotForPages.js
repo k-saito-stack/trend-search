@@ -278,10 +278,18 @@ async function main() {
 
   let cacheUsed = 0;
   for (const stat of sourceStats) {
+    const isXKeySkipped =
+      stat.status === 'skipped' &&
+      /XAI_API_KEY/.test(String(stat.error || ''));
+
     if (stat.status === 'ok' && stat.count > 0) {
       // 正常取得 → 現在時刻
       sourceFetchedAt[stat.sourceId] = now;
-    } else if (stat.status === 'error' || (stat.status === 'ok' && stat.count === 0)) {
+    } else if (
+      stat.status === 'error' ||
+      (stat.status === 'ok' && stat.count === 0) ||
+      isXKeySkipped
+    ) {
       // 失敗 or 0件 → 旧データから補完を試みる
       const cached = oldMaterials.filter((m) => m.sourceId === stat.sourceId);
       if (cached.length > 0) {

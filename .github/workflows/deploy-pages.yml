@@ -41,6 +41,9 @@ jobs:
             exit 1
           fi
 
+      - name: Unit tests
+        run: npm test
+
       - name: スナップショット生成
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}

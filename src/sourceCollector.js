@@ -616,7 +616,7 @@ async function collectRakutenRanking(source, context) {
   try {
     data = JSON.parse(text);
   } catch {
-    return [];
+    throw new Error('楽天ランキング: JSONパース失敗');
   }
   return (data.data || []).slice(0, limit).map((item, index) =>
     makeSignal(source, {
