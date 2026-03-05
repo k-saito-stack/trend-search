@@ -27,6 +27,14 @@ function truncate(text, max = 180) {
   return `${clean.slice(0, max - 1)}…`;
 }
 
+function toAbsoluteUrl(baseUrl, href) {
+  try {
+    return new URL(String(href || ''), String(baseUrl || '')).toString();
+  } catch {
+    return String(href || '').trim();
+  }
+}
+
 function normalizeUrl(rawUrl) {
   const value = String(rawUrl || '').trim();
   if (!value) return '';
@@ -65,6 +73,8 @@ function isRecentEnough(publishedAt, sinceDate) {
 async function fetchText(url, options = {}) {
   const timeoutMs = Number(options.timeoutMs || DEFAULT_TIMEOUT_MS);
   const maxResponseBytes = Number(options.maxResponseBytes || DEFAULT_MAX_RESPONSE_BYTES);
+  const attempt = Math.max(1, Number(options.attempt || 1));
+  const onMeta = typeof options.onMeta === 'function' ? options.onMeta : null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -85,11 +95,19 @@ async function fetchText(url, options = {}) {
       throw new Error(`response too large: ${contentLength} bytes (max ${maxResponseBytes})`);
     }
 
-    const text = await readResponseTextWithLimit(response, maxResponseBytes, controller);
+    const body = await readResponseTextWithLimit(response, maxResponseBytes, controller);
+    onMeta?.({
+      url,
+      finalUrl: response.url || url,
+      httpStatus: Number(response.status),
+      responseBytes: body.bytes,
+      attempt,
+    });
+
     if (!response.ok) {
       throw new Error(`${response.status} ${response.statusText}`.trim());
     }
-    return text;
+    return body.text;
   } finally {
     clearTimeout(timer);
   }
@@ -98,10 +116,11 @@ async function fetchText(url, options = {}) {
 async function readResponseTextWithLimit(response, maxBytes, controller) {
   if (!response.body || typeof response.body.getReader !== 'function') {
     const text = await response.text();
-    if (Buffer.byteLength(text, 'utf8') > maxBytes) {
+    const bytes = Buffer.byteLength(text, 'utf8');
+    if (bytes > maxBytes) {
       throw new Error(`response too large (max ${maxBytes} bytes)`);
     }
-    return text;
+    return { text, bytes };
   }
 
   const reader = response.body.getReader();
@@ -130,7 +149,10 @@ async function readResponseTextWithLimit(response, maxBytes, controller) {
     offset += chunk.byteLength;
   }
 
-  return new TextDecoder('utf-8', { fatal: false }).decode(merged);
+  return {
+    text: new TextDecoder('utf-8', { fatal: false }).decode(merged),
+    bytes: total,
+  };
 }
 
 function fillTemplate(template, theme, sinceDate) {
@@ -201,7 +223,7 @@ function parseTohanRanking(html, limit) {
   }));
 }
 
-function parseHontoRanking(html, limit) {
+function parseHontoRankingLegacy(html, limit) {
   const results = [];
   const seen = new Set();
 
@@ -240,6 +262,157 @@ function parseHontoRanking(html, limit) {
     metricLabel: 'rank',
     metricValue: index + 1,
   }));
+}
+
+function isHontoProductUrlV2(url) {
+  try {
+    const parsed = new URL(String(url || ''));
+    if (!/(^|\.)honto\.jp$/i.test(parsed.hostname)) {
+      return false;
+    }
+    return /\/(?:ebook|netstore)\/(?:pd_[^/]+|pd-[^/]+)/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function normalizeHontoProductUrlV2(url) {
+  try {
+    const parsed = new URL(String(url || ''));
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return String(url || '').trim();
+  }
+}
+
+function extractHontoProductUrlsV2(html, baseUrl) {
+  const urls = [];
+  const seen = new Set();
+  const pattern = /href="([^"]+)"/gi;
+  let hit;
+
+  while ((hit = pattern.exec(html))) {
+    const abs = toAbsoluteUrl(baseUrl, hit[1]);
+    if (!isHontoProductUrlV2(abs)) continue;
+    const normalized = normalizeHontoProductUrlV2(abs);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    urls.push(normalized);
+  }
+
+  return urls;
+}
+
+function parseHontoRankingByHeadingPatternV2(html, limit, blockPattern, blockIndex, baseUrl, fallbackUrls) {
+  const results = [];
+  const seen = new Set();
+  let fallbackIndex = 0;
+  let hit;
+
+  while ((hit = blockPattern.exec(html)) && results.length < limit * 2) {
+    const block = String(hit[blockIndex] || '');
+    const title = stripTags(block).replace(/\s+/g, ' ').trim();
+    if (!title || title.length < 2) continue;
+
+    let url = '';
+    const linkPattern = /href="([^"]+)"/gi;
+    let linkHit;
+    while ((linkHit = linkPattern.exec(block))) {
+      const abs = toAbsoluteUrl(baseUrl, linkHit[1]);
+      if (!isHontoProductUrlV2(abs)) continue;
+      url = normalizeHontoProductUrlV2(abs);
+      break;
+    }
+
+    if (!url) {
+      while (fallbackIndex < fallbackUrls.length && seen.has(`u:${fallbackUrls[fallbackIndex]}`)) {
+        fallbackIndex += 1;
+      }
+      if (fallbackIndex < fallbackUrls.length) {
+        url = fallbackUrls[fallbackIndex];
+        fallbackIndex += 1;
+      }
+    }
+
+    if (!url) {
+      url = `https://honto.jp/netstore/search.html?search.keyword=${encodeURIComponent(title)}`;
+    }
+
+    const key = url ? `u:${url}` : `t:${title.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    results.push({ url, title, summary: `${title} (honto ranking)` });
+  }
+
+  return results.slice(0, limit).map((entry, index) => ({
+    ...entry,
+    metricLabel: 'rank',
+    metricValue: index + 1,
+  }));
+}
+
+function parseHontoRankingByLinkScanV2(html, limit, baseUrl) {
+  const results = [];
+  const seen = new Set();
+  const linkPattern = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let hit;
+
+  while ((hit = linkPattern.exec(html)) && results.length < limit * 3) {
+    const abs = normalizeHontoProductUrlV2(toAbsoluteUrl(baseUrl, hit[1]));
+    if (!isHontoProductUrlV2(abs)) continue;
+
+    const title = stripTags(hit[2]).replace(/\s+/g, ' ').trim();
+    if (!title || title.length < 2) continue;
+    if (/^(?:詳細|商品詳細|試し読み|続きを読む)$/i.test(title)) continue;
+
+    if (seen.has(abs)) continue;
+    seen.add(abs);
+    results.push({ url: abs, title, summary: `${title} (honto ranking)` });
+  }
+
+  return results.slice(0, limit).map((entry, index) => ({
+    ...entry,
+    metricLabel: 'rank',
+    metricValue: index + 1,
+  }));
+}
+
+function parseHontoRanking(html, limit, baseUrl = 'https://honto.jp') {
+  const safeLimit = Math.max(1, Number(limit || 10));
+  const fallbackUrls = extractHontoProductUrlsV2(html, baseUrl);
+
+  const variant1 = parseHontoRankingByHeadingPatternV2(
+    html,
+    safeLimit,
+    /<h2[^>]+class="[^"]*stHeading[^"]*"[^>]*>([\s\S]*?)<\/h2>/gi,
+    1,
+    baseUrl,
+    fallbackUrls,
+  );
+  if (variant1.length > 0) {
+    return { entries: variant1, parseVariant: 'honto_stHeading_h2_v1' };
+  }
+
+  const variant2 = parseHontoRankingByHeadingPatternV2(
+    html,
+    safeLimit,
+    /<(h2|h3|div|p)[^>]+class="[^"]*stHeading[^"]*"[^>]*>([\s\S]*?)<\/\1>/gi,
+    2,
+    baseUrl,
+    fallbackUrls,
+  );
+  if (variant2.length > 0) {
+    return { entries: variant2, parseVariant: 'honto_stHeading_any_v2' };
+  }
+
+  const variant3 = parseHontoRankingByLinkScanV2(html, safeLimit, baseUrl);
+  if (variant3.length > 0) {
+    return { entries: variant3, parseVariant: 'honto_link_scan_v3' };
+  }
+
+  return { entries: [], parseVariant: 'honto_parse_zero' };
 }
 
 function parseYurindoRanking(html, limit) {
@@ -398,12 +571,32 @@ async function collectTohanRanking(source, context) {
   );
 }
 
-async function collectHontoRanking(source, context) {
+async function collectHontoRanking(source, context, metaOut = {}) {
   const html = await fetchText(source.url, {
     timeoutMs: context.timeoutMs,
-    headers: { 'Accept-Language': 'ja,en-US;q=0.9' },
+    headers: {
+      'User-Agent': randomUserAgent(),
+      'Accept-Language': 'ja,en-US;q=0.9',
+      Referer: 'https://honto.jp/',
+    },
+    onMeta: (meta) => {
+      metaOut.httpStatus = meta.httpStatus;
+      metaOut.responseBytes = meta.responseBytes;
+      metaOut.attempt = meta.attempt;
+    },
   });
-  const entries = parseHontoRanking(html, Number(source.itemLimit || 10));
+  if (isHontoBlocked(html)) {
+    metaOut.parseVariant = 'honto_blocked';
+    throw new Error('honto ranking blocked');
+  }
+
+  const parsed = parseHontoRanking(html, Number(source.itemLimit || 10), source.url);
+  metaOut.parseVariant = parsed.parseVariant;
+  const entries = parsed.entries || [];
+  if (entries.length === 0) {
+    throw new Error('honto ranking parse zero');
+  }
+
   return entries.map((entry) =>
     makeSignal(source, {
       title: entry.title,
@@ -455,6 +648,10 @@ async function collectYurindoRanking(source, context) {
 
 function isRobotCheck(html) {
   return /Robot Check|captcha|Enter the characters|文字を入力/i.test(html);
+}
+
+function isHontoBlocked(html) {
+  return /captcha|verify you are human|access denied|forbidden|cloudflare|robot check|unusual traffic/i.test(String(html || ''));
 }
 
 function isLikelyPriceText(text) {
@@ -607,15 +804,21 @@ async function collectXGrok(source, context) {
       items: [],
       meta: {
         reason: 'XAI_API_KEY が未設定',
+        attempt: 0,
+        httpStatus: null,
+        responseBytes: 0,
+        parseVariant: 'x_skipped_no_key',
       },
     };
   }
 
   const queryWithSince = buildXQuery(context.theme, context.sinceDate);
+  const apiMeta = {};
   const raw = await callResponsesApi({
     apiKey: context.apiKey,
     model: context.model,
     queryWithSince,
+    metaOut: apiMeta,
   });
 
   const parsed = parseGrokResponse(raw);
@@ -642,10 +845,14 @@ async function collectXGrok(source, context) {
     meta: {
       queryWithSince,
       parseStatus: parsed.ok ? 'ok' : 'fallback_text',
+      parseVariant: parsed.ok ? 'x_json_ok' : 'x_json_fallback',
       clusters: parsed.data.clusters || [],
       themes: parsed.data.themes || [],
       editorialSummary: parsed.data.editorialSummary || '',
       rawText: parsed.rawText || '',
+      attempt: Number(apiMeta.attempt || 0),
+      httpStatus: Number.isFinite(Number(apiMeta.httpStatus)) ? Number(apiMeta.httpStatus) : null,
+      responseBytes: Number.isFinite(Number(apiMeta.responseBytes)) ? Number(apiMeta.responseBytes) : 0,
     },
   };
 }
@@ -714,12 +921,13 @@ async function collectSingleSource(source, context) {
     }
 
     if (source.kind === 'honto_bestseller') {
-      const items = await collectHontoRanking(source, context);
+      const hontoMeta = {};
+      const items = await collectHontoRanking(source, context, hontoMeta);
       return {
         source,
         status: 'ok',
         items,
-        meta: {},
+        meta: hontoMeta,
         durationMs: Date.now() - startedAt,
       };
     }
@@ -851,6 +1059,12 @@ async function collectThemeSignals(theme, options = {}) {
     costTier: result.source.costTier,
     count: Array.isArray(result.items) ? result.items.length : 0,
     durationMs: result.durationMs,
+    httpStatus: Number.isFinite(Number(result.meta?.httpStatus)) ? Number(result.meta.httpStatus) : null,
+    responseBytes: Number.isFinite(Number(result.meta?.responseBytes)) ? Number(result.meta.responseBytes) : null,
+    parseVariant: String(result.meta?.parseVariant || result.meta?.parseStatus || ''),
+    attempt: Number.isFinite(Number(result.meta?.attempt))
+      ? Number(result.meta.attempt)
+      : (result.status === 'skipped' ? 0 : 1),
     error: result.meta?.reason || '',
   }));
 

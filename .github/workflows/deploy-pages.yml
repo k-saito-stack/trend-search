@@ -31,6 +31,16 @@ jobs:
       - name: 依存関係インストール
         run: npm ci
 
+      - name: Preflight (XAI_API_KEY)
+        env:
+          SOURCE_ENABLE_X: ${{ vars.SOURCE_ENABLE_X }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        run: |
+          if [ "${SOURCE_ENABLE_X}" != "0" ] && [ -z "${XAI_API_KEY}" ]; then
+            echo "::error::XAI_API_KEY is missing while SOURCE_ENABLE_X is enabled."
+            exit 1
+          fi
+
       - name: スナップショット生成
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}

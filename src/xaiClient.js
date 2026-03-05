@@ -85,7 +85,7 @@ async function sendResponsesRequest({ apiKey, payload, timeoutMs }) {
   }
 }
 
-async function callResponsesApi({ apiKey, model, queryWithSince }) {
+async function callResponsesApi({ apiKey, model, queryWithSince, metaOut }) {
   const payload = {
     model,
     instructions: buildSystemPrompt(),
@@ -101,14 +101,30 @@ async function callResponsesApi({ apiKey, model, queryWithSince }) {
 
   const maxAttempt = XAI_RETRY_COUNT + 1;
   let lastError;
+  const stats = metaOut && typeof metaOut === 'object' ? metaOut : null;
+
+  if (stats) {
+    stats.attempt = 0;
+    stats.httpStatus = null;
+    stats.responseBytes = 0;
+  }
 
   for (let attempt = 1; attempt <= maxAttempt; attempt += 1) {
+    if (stats) {
+      stats.attempt = attempt;
+    }
+
     try {
       const { response, text } = await sendResponsesRequest({
         apiKey,
         payload,
         timeoutMs: XAI_TIMEOUT_MS,
       });
+
+      if (stats) {
+        stats.httpStatus = Number(response.status);
+        stats.responseBytes = Buffer.byteLength(text || '', 'utf8');
+      }
 
       if (!response.ok) {
         const error = new Error(`xAI API エラー ${response.status}: ${text.slice(0, 400)}`);
