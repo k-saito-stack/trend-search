@@ -2,6 +2,7 @@ const { createId, getSinceDate } = require('./utils');
 const { callResponsesApi, parseGrokResponse } = require('./xaiClient');
 const { parseRssFeed, stripTags } = require('./rssParser');
 const { getSourceCatalog, buildGoogleNewsRssUrl } = require('./sourceCatalog');
+const { buildPublishingXQuery } = require('./publishingTheme');
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.SOURCE_HTTP_TIMEOUT_MS || 12000);
 const DEFAULT_CONCURRENCY = Math.max(1, Number(process.env.SOURCE_CONCURRENCY || 4));
@@ -185,11 +186,10 @@ function makeSignal(source, payload) {
   };
 }
 
-function buildXQuery(theme, sinceDate) {
-  // X検索: 長いクエリは精度が落ちるため短く絞る
-  // 7日分の窓でバズった投稿を確実に捕捉（Top モードで人気順に取得）
+function buildXQuery() {
+  // X検索: 7日分の窓でバズった投稿を確実に捕捉（Top モードで人気順に取得）
   const xSinceDate = getSinceDate(7);
-  return `出版社 OR 書評 OR 新刊 OR ベストセラー OR 重版 -同人誌 -コミケ since:${xSinceDate}`;
+  return buildPublishingXQuery(xSinceDate);
 }
 
 function parseTohanRanking(html, limit) {
@@ -797,6 +797,69 @@ async function collectKinseriDeals(source, context) {
   );
 }
 
+function parseBunkaNewsArchive(html, limit, baseUrl) {
+  const results = [];
+  const seen = new Set();
+  const blocks = String(html || '').match(/<article\b[\s\S]*?<\/article>/gi) || [];
+
+  for (const block of blocks) {
+    const linkMatch =
+      block.match(/<h2[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i) ||
+      block.match(/<h3[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+    if (!linkMatch) continue;
+
+    const url = normalizeUrl(toAbsoluteUrl(baseUrl, linkMatch[1]));
+    const title = stripTags(linkMatch[2]).replace(/\s+/g, ' ').trim();
+
+    const summaryMatch =
+      block.match(/<div[^>]+class="[^"]*entry-summary[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
+      block.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+
+    const timeMatch =
+      block.match(/<time[^>]+datetime="([^"]+)"/i) ||
+      block.match(/datetime="([^"]+)"/i);
+
+    const summary = stripTags(summaryMatch?.[1] || title).replace(/\s+/g, ' ').trim();
+    const publishedAt = String(timeMatch?.[1] || '').trim() || null;
+
+    if (!url || !title) continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+
+    results.push({ title, summary, url, publishedAt });
+    if (results.length >= limit) break;
+  }
+
+  return results;
+}
+
+async function collectBunkaNewsArchive(source, context, metaOut = {}) {
+  const html = await fetchText(source.url, {
+    timeoutMs: context.timeoutMs,
+    headers: {
+      'User-Agent': randomUserAgent(),
+      'Accept-Language': 'ja,en-US;q=0.9',
+    },
+  });
+
+  const entries = parseBunkaNewsArchive(html, Number(source.itemLimit || 8), source.url)
+    .filter((entry) => entry.url)
+    .filter((entry) => isRecentEnough(entry.publishedAt, context.sinceDate));
+
+  metaOut.parseVariant = 'bunkanews_archive';
+
+  return entries.map((entry) =>
+    makeSignal(source, {
+      title: entry.title,
+      summary: entry.summary || entry.title,
+      url: entry.url,
+      publishedAt: entry.publishedAt,
+      metricLabel: 'mentions',
+      metricValue: 1,
+    }),
+  );
+}
+
 async function collectXGrok(source, context) {
   if (!context.apiKey) {
     return {
@@ -812,7 +875,7 @@ async function collectXGrok(source, context) {
     };
   }
 
-  const queryWithSince = buildXQuery(context.theme, context.sinceDate);
+  const queryWithSince = buildXQuery();
   const apiMeta = {};
   const raw = await callResponsesApi({
     apiKey: context.apiKey,
@@ -953,6 +1016,12 @@ async function collectSingleSource(source, context) {
       return { source, status: 'ok', items, meta: {}, durationMs: Date.now() - startedAt };
     }
 
+    if (source.kind === 'bunkanews_archive') {
+      const bunkaMeta = {};
+      const items = await collectBunkaNewsArchive(source, context, bunkaMeta);
+      return { source, status: 'ok', items, meta: bunkaMeta, durationMs: Date.now() - startedAt };
+    }
+
     return {
       source,
       status: 'skipped',
@@ -1081,7 +1150,9 @@ async function collectThemeSignals(theme, options = {}) {
 module.exports = {
   collectThemeSignals,
   _private: {
+    buildXQuery,
     parseAmazonRankingPage,
+    parseBunkaNewsArchive,
     isLikelyPriceText,
   },
 };

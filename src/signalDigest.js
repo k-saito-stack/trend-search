@@ -1,4 +1,5 @@
 const { getPeriodLabel } = require('./utils');
+const { buildDisplayQueryWithSince } = require('./publishingTheme');
 
 const STOP_WORDS = new Set([
   'こと',
@@ -282,7 +283,7 @@ function buildTrendPayload(theme, collection) {
 
   const queryWithSince =
     collection.xMeta?.queryWithSince ||
-    `${theme.query || theme.name} source-window:${collection.sinceDate}..today`;
+    buildDisplayQueryWithSince(theme.query || theme.name, collection.sinceDate);
 
   const rawText = collection.xMeta?.rawText || '';
   const editorialSummary = collection.xMeta?.editorialSummary || '';

@@ -82,3 +82,29 @@ test('buildTrendPayload returns no_signals on empty signals', () => {
   assert.equal(digest.parseStatus, 'no_signals');
   assert.equal(digest.payload.materials.length, 0);
 });
+
+test('queryWithSince uses since: format when xMeta is null', () => {
+  const digest = buildTrendPayload(
+    {
+      name: '出版業界と周辺業界',
+      query: '出版業界 周辺業界',
+      periodDays: 1,
+    },
+    {
+      sinceDate: '2026-03-09',
+      totalSignalsBeforeDedupe: 0,
+      sourceStats: [],
+      signals: [],
+      xMeta: null,
+    },
+  );
+
+  assert.ok(
+    digest.queryWithSince.includes('since:'),
+    `expected since: format but got: ${digest.queryWithSince}`,
+  );
+  assert.ok(
+    !digest.queryWithSince.includes('source-window:'),
+    `should not contain source-window: but got: ${digest.queryWithSince}`,
+  );
+});

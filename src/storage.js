@@ -1,13 +1,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createId } = require('./utils');
+const { FIXED_THEME_NAME, FIXED_THEME_QUERY } = require('./publishingTheme');
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const THEMES_FILE = path.join(DATA_DIR, 'themes.json');
 const TREND_FILE = path.join(DATA_DIR, 'trends.json');
-const FIXED_THEME_NAME = '出版業界と周辺業界';
-const FIXED_THEME_QUERY =
-  '出版業界 周辺業界 出版社 書店 新刊 書評 PR TIMES 人事 異動 テレビ ラジオ ベストセラー Amazon Kindle';
 const FIXED_PERIOD_DAYS = 1;
 
 function ensureDataFiles() {
@@ -39,12 +37,16 @@ function buildPrimaryTheme(current, now = new Date().toISOString()) {
   };
 }
 
+function stripBom(text) {
+  return String(text || '').replace(/^\uFEFF/, '');
+}
+
 function readJson(filePath, fallback, options = {}) {
   const allowMissing = options.allowMissing !== false;
   const label = options.label || path.basename(filePath);
 
   try {
-    const text = fs.readFileSync(filePath, 'utf8');
+    const text = stripBom(fs.readFileSync(filePath, 'utf8'));
     return JSON.parse(text);
   } catch (error) {
     if (error && error.code === 'ENOENT' && allowMissing) {

@@ -6,7 +6,7 @@
 - 毎日 `08:00 JST` と `16:00 JST` に GitHub Actions が自動収集・GitHub Pagesに公開
 - `08:00 JST`: 全ソース更新（記事 / X / ランキング / セール）
 - `16:00 JST`: 記事 + X を再取得し、ランキング/セールは直近データを維持
-- 収集ソース: Google News RSS / 各書店ランキング / Yahoo! フォロー / はてブ / 新文化オンライン / HON.jp / Kindle日替わりセール / 任意で X(Grok)
+- 収集ソース: Google News RSS / 各書店ランキング / Yahoo! フォロー / はてブ / 新文化オンライン / HON.jp / Bunka News（出版・オーディオブック） / Kindle日替わりセール / 任意で X(Grok)
 
 ## GitHub Pages への公開（社内限定ログイン）
 
@@ -72,7 +72,8 @@ GitHub の **Actions タブ → Deploy to GitHub Pages → Run workflow** で手
 
 ## 主な構成
 
-- `src/sourceCatalog.js`: ソース定義（Google News / 書店ランキング / RSS / Kindle deals）
+- `src/publishingTheme.js`: 固定テーマ定数の一元管理（文字化け防止）
+- `src/sourceCatalog.js`: ソース定義（Google News / 書店ランキング / RSS / Bunka News / Kindle deals）
 - `src/sourceCollector.js`: マルチソース収集
 - `src/signalDigest.js`: 重複排除 / スコアリング / クラスタ化
 - `src/storage.js`: テーマとrun保存

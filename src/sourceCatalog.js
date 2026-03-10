@@ -271,6 +271,27 @@ const SOURCE_CATALOG = [
     itemLimit: 6,
     url: 'https://hon.jp/news/feed',
   },
+  // Bunka News（文化通信）アーカイブ
+  {
+    id: 'news_bunkanews_audiobook',
+    kind: 'bunkanews_archive',
+    name: 'Bunka News / オーディオブック',
+    category: 'audio',
+    costTier: 'free',
+    priority: 4,
+    itemLimit: 6,
+    url: 'https://www.bunkanews.jp/article/tag/%E3%82%AA%E3%83%BC%E3%83%87%E3%82%A3%E3%82%AA%E3%83%96%E3%83%83%E3%82%AF/',
+  },
+  {
+    id: 'news_bunkanews_publishing',
+    kind: 'bunkanews_archive',
+    name: 'Bunka News / 出版',
+    category: 'industry_news',
+    costTier: 'free',
+    priority: 4,
+    itemLimit: 8,
+    url: 'https://www.bunkanews.jp/publishing/',
+  },
   // Kindle日替わりセール
   {
     id: 'kindle_daily_deals',
