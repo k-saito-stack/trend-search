@@ -3,6 +3,7 @@ const state = {
   firebaseAuth: null,
   firestore: null,
   authProvider: null,
+  currentUser: null,
 };
 const DEFAULT_ALLOWED_EMAIL_DOMAIN = 'kodansha.co.jp';
 const DEFAULT_SNAPSHOT_DOC_PATH = 'snapshots/latest';
@@ -172,6 +173,32 @@ function escapeHtml(text) {
     .replaceAll("'", '&#39;');
 }
 
+function sanitizeDataValue(value) {
+  return escapeHtml(String(value || '').trim());
+}
+
+function buildTrackingAttrs(item) {
+  const title = item?.title || item?.summary || '';
+  return [
+    `data-url="${sanitizeDataValue(item?.url)}"`,
+    `data-source-category="${sanitizeDataValue(item?.sourceCategory)}"`,
+    `data-source-kind="${sanitizeDataValue(item?.sourceKind)}"`,
+    `data-source-name="${sanitizeDataValue(item?.sourceName)}"`,
+    `data-item-title="${sanitizeDataValue(title)}"`,
+  ].join(' ');
+}
+
+function readTrackingDetails(element) {
+  if (!element?.dataset) return null;
+  return {
+    targetUrl: String(element.dataset.url || ''),
+    sourceCategory: String(element.dataset.sourceCategory || ''),
+    sourceKind: String(element.dataset.sourceKind || ''),
+    sourceName: String(element.dataset.sourceName || ''),
+    itemTitle: String(element.dataset.itemTitle || ''),
+  };
+}
+
 function notify(message, isError = false) {
   toastEl.textContent = message;
   toastEl.style.background = isError ? '#9f2f1d' : '#15253f';
@@ -188,10 +215,16 @@ function isSafeHttpUrl(href) {
   }
 }
 
-function openExternalUrl(href) {
+function openExternalUrl(href, details = null) {
   if (!isSafeHttpUrl(href)) {
     notify('不正なURLをブロックしました', true);
     return;
+  }
+  if (details) {
+    window.TrendUsageAnalytics?.trackContentOpen({
+      ...details,
+      targetUrl: href,
+    });
   }
   window.open(href, '_blank', 'noopener,noreferrer');
 }
@@ -262,10 +295,12 @@ async function loadSnapshotFromFirestore() {
 
 async function handleAuthStateChanged(user) {
   const wasAppVisible = appMainEl && !appMainEl.hidden;
+  state.currentUser = user || null;
 
   if (!user) {
     state.snapshot = null;
     updateSignedInStatus('');
+    window.TrendUsageAnalytics?.reset();
 
     if (wasAppVisible && !prefersReducedMotion()) {
       appMainEl.classList.add('morph-out');
@@ -285,6 +320,7 @@ async function handleAuthStateChanged(user) {
 
   const email = String(user.email || '').trim();
   if (!email || !isAllowedCompanyEmail(email) || !user.emailVerified) {
+    window.TrendUsageAnalytics?.reset();
     const deniedReason = !email
       ? 'メールアドレスを確認できないため'
       : (!isAllowedCompanyEmail(email)
@@ -320,6 +356,8 @@ async function handleAuthStateChanged(user) {
   try {
     await loadSnapshotFromFirestore();
     render();
+    window.TrendUsageAnalytics?.trackAppView();
+    window.TrendUsageAnalytics?.scheduleEngagedView();
   } catch (error) {
     feedGridEl.innerHTML = `<article class="empty-card">${escapeHtml(error.message || 'データ読込に失敗しました。')}</article>`;
     notify(error.message || 'データ読込に失敗しました。', true);
@@ -341,6 +379,10 @@ async function initFirebaseAuthMode() {
   state.firebaseAuth = window.firebase.auth();
   state.firestore = window.firebase.firestore();
   state.authProvider = new window.firebase.auth.GoogleAuthProvider();
+  window.TrendUsageAnalytics?.init({
+    firestore: state.firestore,
+    getCurrentUser: () => state.currentUser,
+  });
   state.authProvider.setCustomParameters({
     hd: getAllowedEmailDomain(),
     prompt: 'select_account',
@@ -551,10 +593,10 @@ function buildRankingCard(rankingItems, label, sourceFetchedAt) {
         if (!item) return `<td></td><td class="${titleCellClass}"></td>`;
         const rank = Number(item.metricValue || 0);
         const title = escapeHtml(item.title || '');
-        const url = escapeHtml(item.url || '');
+        const trackingAttrs = buildTrackingAttrs(item);
         const rankClass = rank === 1 ? 'rank-gold' : rank === 2 ? 'rank-silver' : rank === 3 ? 'rank-bronze' : '';
         const rankCellClass = `rank-cell ${rankClass}${g.isDigital ? ' rank-cell-digital' : ''}`.trim();
-        return `<td class="${rankCellClass}" data-url="${url}">${rank}</td><td class="${titleCellClass}" data-url="${url}">${title}</td>`;
+        return `<td class="${rankCellClass}" ${trackingAttrs}>${rank}</td><td class="${titleCellClass}" ${trackingAttrs}>${title}</td>`;
       })
       .join('<td class="ranking-col-divider"></td>');
     return `<tr class="ranking-row">${cells}</tr>`;
@@ -590,9 +632,9 @@ function buildDealsCard(dealsItems, sourceFetchedAt) {
     for (let c = 0; c < cols; c++) {
       const item = dealsItems[i + c];
       if (item) {
-        const url = escapeHtml(item.url || '');
         const title = escapeHtml(item.title || '');
-        cells.push(`<td class="deals-title-cell" data-url="${url}">${title}</td>`);
+        const trackingAttrs = buildTrackingAttrs(item);
+        cells.push(`<td class="deals-title-cell" ${trackingAttrs}>${title}</td>`);
       } else {
         cells.push('<td class="deals-title-cell"></td>');
       }
@@ -638,16 +680,16 @@ function renderFeed(run) {
     const source = escapeHtml(item.sourceName || 'Source');
     const metric = escapeHtml(formatMetric(item));
     const published = !isX ? formatDate(item.publishedAt) : '-';
-    const url = escapeHtml(item.url || '');
     const publishedPill = published !== '-' ? `<span class="meta-pill">${escapeHtml(published)}</span>` : '';
     const metricPill = metric ? `<span class="meta-pill">${metric}</span>` : '';
+    const trackingAttrs = buildTrackingAttrs(item);
     // X投稿はタイトルなし（投稿本文をsummaryとして表示）、記事はタイトル+summary
     const title = !isX ? escapeHtml(item.title || item.summary || 'Untitled') : '';
     const summary = isX
       ? escapeHtml(item.summary || item.title || '')
       : (item.summary && item.summary !== item.title ? escapeHtml(item.summary) : '');
     return `
-      <article class="${cardClass}" data-url="${url}">
+      <article class="${cardClass}" ${trackingAttrs}>
         <div class="card-meta">
           <span class="meta-pill">${source}</span>
           ${metricPill}
@@ -673,7 +715,7 @@ function renderFeed(run) {
   feedGridEl.querySelectorAll('.feed-card[data-url]').forEach((card) => {
     card.addEventListener('click', () => {
       const href = card.dataset.url;
-      if (href) openExternalUrl(href);
+      if (href) openExternalUrl(href, readTrackingDetails(card));
     });
   });
 
@@ -681,7 +723,7 @@ function renderFeed(run) {
   feedGridEl.querySelectorAll('.rank-title-cell[data-url], .rank-cell[data-url]').forEach((cell) => {
     cell.addEventListener('click', () => {
       const href = cell.dataset.url;
-      if (href) openExternalUrl(href);
+      if (href) openExternalUrl(href, readTrackingDetails(cell));
     });
   });
 
@@ -689,7 +731,7 @@ function renderFeed(run) {
   feedGridEl.querySelectorAll('.deals-title-cell[data-url]').forEach((cell) => {
     cell.addEventListener('click', () => {
       const href = cell.dataset.url;
-      if (href) openExternalUrl(href);
+      if (href) openExternalUrl(href, readTrackingDetails(cell));
     });
   });
 }

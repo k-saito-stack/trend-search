@@ -8,10 +8,47 @@ service cloud.firestore {
         && request.auth.token.email.matches('.*@kodansha\\.co\\.jp$');
     }
 
+    function isUsageEventName(value) {
+      return value == 'app_view'
+        || value == 'engaged_30s'
+        || value == 'content_open';
+    }
+
+    function isValidUsageEvent() {
+      return request.resource.data.keys().hasAll([
+          'appName',
+          'eventName',
+          'eventVersion',
+          'eventDate',
+          'pagePath',
+          'pageTitle',
+          'sessionId',
+          'userUid',
+          'userEmail',
+          'timestamp',
+        ])
+        && request.resource.data.appName == 'todays-insaito'
+        && request.resource.data.eventName is string
+        && isUsageEventName(request.resource.data.eventName)
+        && request.resource.data.eventVersion == 1
+        && request.resource.data.eventDate is string
+        && request.resource.data.pagePath is string
+        && request.resource.data.pageTitle is string
+        && request.resource.data.sessionId is string
+        && request.resource.data.userUid == request.auth.uid
+        && request.resource.data.userEmail == request.auth.token.email
+        && request.resource.data.timestamp == request.time;
+    }
+
     // GitHub Pagesから読む公開データ
     match /snapshots/{docId} {
       allow read: if isKodanshaUser();
       allow write: if false;
+    }
+
+    match /usageEvents/{eventId} {
+      allow create: if isKodanshaUser() && isValidUsageEvent();
+      allow read, update, delete: if false;
     }
 
     // 明示許可していない全パスを拒否
