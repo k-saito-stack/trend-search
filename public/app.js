@@ -389,6 +389,16 @@ function formatDate(isoDate) {
   if (!isoDate) return '-';
   const date = new Date(isoDate);
   if (Number.isNaN(date.getTime())) return '-';
+  // 時刻が00:00の場合は日付のみ表示
+  const timeParts = date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hour12: false });
+  if (timeParts === '00:00') {
+    return date.toLocaleString('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+  }
   return date.toLocaleString('ja-JP', {
     timeZone: 'Asia/Tokyo',
     year: 'numeric',
@@ -400,6 +410,9 @@ function formatDate(isoDate) {
 }
 
 function formatMetric(item) {
+  // スケジュールはスコア表示不要
+  if (item.sourceCategory === 'industry_schedule') return '';
+
   const label = String(item.metricLabel || '').toLowerCase();
   const value = Number(item.metricValue || 0);
 
