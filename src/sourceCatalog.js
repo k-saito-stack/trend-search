@@ -273,16 +273,6 @@ const SOURCE_CATALOG = [
   },
   // Bunka News（文化通信）アーカイブ
   {
-    id: 'news_bunkanews_audiobook',
-    kind: 'bunkanews_archive',
-    name: 'Bunka News / オーディオブック',
-    category: 'audio',
-    costTier: 'free',
-    priority: 4,
-    itemLimit: 6,
-    url: 'https://www.bunkanews.jp/article/tag/%E3%82%AA%E3%83%BC%E3%83%87%E3%82%A3%E3%82%AA%E3%83%96%E3%83%83%E3%82%AF/',
-  },
-  {
     id: 'news_bunkanews_publishing',
     kind: 'bunkanews_archive',
     name: 'Bunka News / 出版',
@@ -291,6 +281,27 @@ const SOURCE_CATALOG = [
     priority: 4,
     itemLimit: 8,
     url: 'https://www.bunkanews.jp/publishing/',
+  },
+  {
+    id: 'news_bunkanews_digital',
+    kind: 'bunkanews_archive',
+    name: 'Bunka News / デジタル',
+    category: 'digital',
+    costTier: 'free',
+    priority: 4,
+    itemLimit: 8,
+    url: 'https://www.bunkanews.jp/digital/',
+  },
+  // Bunka News 業界スケジュール（今日から1週間先まで）
+  {
+    id: 'news_bunkanews_schedule',
+    kind: 'bunkanews_schedule',
+    name: 'Bunka News / 業界スケジュール',
+    category: 'industry_schedule',
+    costTier: 'free',
+    priority: 3,
+    itemLimit: 20,
+    url: 'https://www.bunkanews.jp/schedules/',
   },
   // Kindle日替わりセール
   {

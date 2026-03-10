@@ -54,3 +54,81 @@ test('parseBunkaNewsArchive returns empty for no articles', () => {
   const results = _private.parseBunkaNewsArchive('<html></html>', 10, 'https://www.bunkanews.jp');
   assert.equal(results.length, 0);
 });
+
+// --- parseBunkaNewsSchedule tests ---
+
+const SCHEDULE_FIXTURE = `
+<html><body>
+<h2>2026年度 業界スケジュール</h2>
+<h3>3月March</h3>
+<ul>
+<li>
+10日（月）
+【出版】三省堂書店リニューアルオープン
+<a href="/article/schedule/12345/">詳細はこちら</a>
+</li>
+<li>
+14日（土）
+【出版】KOBE BOOK FAIR（3月14日〜15日）
+11:00〜 場所：神戸ファッションマート
+<a href="https://example.com/kobe-book">詳細はこちら</a>
+</li>
+<li>
+25日（水）
+【出版】出版流通セミナー第4回
+14:30〜16:10 日本出版クラブ
+</li>
+</ul>
+<h3>4月April</h3>
+<ul>
+<li>
+21日（火）
+【出版】全国トーハン会代表者総会
+15:00〜 ホテル椿山荘
+<a href="/article/schedule/99999/">詳細はこちら</a>
+</li>
+</ul>
+</body></html>
+`;
+
+test('parseBunkaNewsSchedule extracts schedule items', () => {
+  const results = _private.parseBunkaNewsSchedule(SCHEDULE_FIXTURE, 100, 'https://www.bunkanews.jp');
+  assert.ok(results.length >= 3, `expected >= 3 items but got ${results.length}`);
+
+  const first = results.find((r) => r.eventDate === '2026-03-10');
+  assert.ok(first, 'should find 3/10 event');
+  assert.ok(first.title.includes('三省堂書店'), `title should contain 三省堂書店: ${first.title}`);
+  assert.ok(first.url.includes('/article/schedule/12345/'), `url should contain schedule link: ${first.url}`);
+
+  const kobe = results.find((r) => r.eventDate === '2026-03-14');
+  assert.ok(kobe, 'should find 3/14 event');
+  assert.ok(kobe.title.includes('KOBE BOOK FAIR'), `title: ${kobe.title}`);
+});
+
+test('parseBunkaNewsSchedule handles events without links', () => {
+  const results = _private.parseBunkaNewsSchedule(SCHEDULE_FIXTURE, 100, 'https://www.bunkanews.jp');
+  const seminar = results.find((r) => r.eventDate === '2026-03-25');
+  assert.ok(seminar, 'should find 3/25 event');
+  assert.ok(seminar.url, 'should have a fallback url');
+});
+
+test('parseBunkaNewsSchedule parses across months', () => {
+  const results = _private.parseBunkaNewsSchedule(SCHEDULE_FIXTURE, 100, 'https://www.bunkanews.jp');
+  const april = results.find((r) => r.eventDate === '2026-04-21');
+  assert.ok(april, 'should find April event');
+  assert.ok(april.title.includes('トーハン'), `title: ${april.title}`);
+});
+
+test('filterScheduleByDateRange filters correctly', () => {
+  const entries = [
+    { eventDate: '2026-03-08', title: 'past' },
+    { eventDate: '2026-03-10', title: 'today' },
+    { eventDate: '2026-03-14', title: 'this week' },
+    { eventDate: '2026-03-25', title: 'far future' },
+  ];
+
+  const filtered = _private.filterScheduleByDateRange(entries, '2026-03-10', '2026-03-17');
+  assert.equal(filtered.length, 2);
+  assert.equal(filtered[0].title, 'today');
+  assert.equal(filtered[1].title, 'this week');
+});

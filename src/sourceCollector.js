@@ -860,6 +860,151 @@ async function collectBunkaNewsArchive(source, context, metaOut = {}) {
   );
 }
 
+function parseBunkaNewsSchedule(html, limit, baseUrl) {
+  const results = [];
+  const seen = new Set();
+  const text = String(html || '');
+
+  // 年と月のコンテキストを見出しから取得
+  // 例: <h2>2026年3月</h2> or <h3>3月March</h3>
+  // ページ内の年を取得（見つからなければ現在年）
+  const yearMatch = text.match(/(\d{4})年/);
+  const defaultYear = yearMatch ? Number(yearMatch[1]) : new Date().getFullYear();
+
+  // 月ブロック単位で分割: "N月" の見出しを探す
+  const monthPattern = /<h[23][^>]*>[^<]*?(\d{1,2})月/gi;
+  const monthPositions = [];
+  let mHit;
+  while ((mHit = monthPattern.exec(text))) {
+    monthPositions.push({ month: Number(mHit[1]), index: mHit.index });
+  }
+
+  for (let mi = 0; mi < monthPositions.length && results.length < limit; mi++) {
+    const currentMonth = monthPositions[mi].month;
+    const blockStart = monthPositions[mi].index;
+    const blockEnd = mi + 1 < monthPositions.length ? monthPositions[mi + 1].index : text.length;
+    const block = text.slice(blockStart, blockEnd);
+
+    // 各日付エントリの位置を先に全て収集
+    const dayPattern = /(\d{1,2})日[（(][月火水木金土日][）)]/g;
+    const dayPositions = [];
+    let dHit;
+    while ((dHit = dayPattern.exec(block))) {
+      dayPositions.push({ day: Number(dHit[1]), index: dHit.index });
+    }
+
+    for (let di = 0; di < dayPositions.length && results.length < limit; di++) {
+      const day = dayPositions[di].day;
+      const entryStart = dayPositions[di].index;
+      const entryEnd = di + 1 < dayPositions.length ? dayPositions[di + 1].index : block.length;
+
+      const entryBlock = block.slice(entryStart, entryEnd);
+
+      // タイトル: 【カテゴリ】に続くテキスト
+      const titleMatch = entryBlock.match(/【[^】]+】\s*([\s\S]*?)(?:<|$)/);
+      const categoryMatch = entryBlock.match(/【([^】]+)】/);
+      const category = categoryMatch ? categoryMatch[1] : '';
+
+      let title = '';
+      if (titleMatch) {
+        title = stripTags(titleMatch[1]).replace(/\s+/g, ' ').trim();
+        // 長すぎる場合は最初の行だけ
+        const firstLine = title.split(/[。\n]/)[0].trim();
+        title = firstLine || title;
+      }
+      if (!title) {
+        // タイトルが取れなかった場合、【カテゴリ】以降のテキスト全体から
+        const rawTitle = stripTags(entryBlock.replace(/^\d{1,2}日[（(][月火水木金土日][）)]/, ''))
+          .replace(/\s+/g, ' ')
+          .trim();
+        title = rawTitle.slice(0, 120);
+      }
+      if (!title || title.length < 3) continue;
+
+      // リンク: <a href="...">詳細はこちら</a> or any link
+      const linkMatch = entryBlock.match(/<a[^>]+href="([^"]+)"[^>]*>/i);
+      const url = linkMatch
+        ? normalizeUrl(toAbsoluteUrl(baseUrl, linkMatch[1]))
+        : '';
+
+      // 日付を ISO 形式に
+      const year = currentMonth < 3 ? defaultYear + 1 : defaultYear;
+      const isoDate = `${year}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+      const key = `${isoDate}:${title.slice(0, 40)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const prefix = category ? `【${category}】` : '';
+      results.push({
+        title: `${prefix}${title}`,
+        summary: `${isoDate} ${prefix}${title}`,
+        url: url || `${baseUrl}#${isoDate}`,
+        publishedAt: `${isoDate}T00:00:00+09:00`,
+        eventDate: isoDate,
+      });
+    }
+  }
+
+  return results;
+}
+
+function filterScheduleByDateRange(entries, fromDate, toDate) {
+  const from = fromDate.replace(/-/g, '');
+  const to = toDate.replace(/-/g, '');
+  return entries.filter((entry) => {
+    const d = (entry.eventDate || '').replace(/-/g, '');
+    return d >= from && d <= to;
+  });
+}
+
+async function collectBunkaNewsSchedule(source, context, metaOut = {}) {
+  const html = await fetchText(source.url, {
+    timeoutMs: context.timeoutMs,
+    headers: {
+      'User-Agent': randomUserAgent(),
+      'Accept-Language': 'ja,en-US;q=0.9',
+    },
+  });
+
+  const allEntries = parseBunkaNewsSchedule(html, 100, source.url);
+
+  // 今日から1週間先までに絞る
+  const today = getSinceDate(0);
+  const weekLater = getSinceDate(-7); // 7日後の日付
+  // getSinceDate は過去方向なので手動計算
+  const now = new Date();
+  const todayStr = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-');
+  const future = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const futureStr = [
+    future.getFullYear(),
+    String(future.getMonth() + 1).padStart(2, '0'),
+    String(future.getDate()).padStart(2, '0'),
+  ].join('-');
+
+  const filtered = filterScheduleByDateRange(allEntries, todayStr, futureStr)
+    .slice(0, Number(source.itemLimit || 20));
+
+  metaOut.parseVariant = 'bunkanews_schedule';
+  metaOut.totalParsed = allEntries.length;
+  metaOut.filteredCount = filtered.length;
+
+  return filtered.map((entry) =>
+    makeSignal(source, {
+      title: entry.title,
+      summary: entry.summary || entry.title,
+      url: entry.url,
+      publishedAt: entry.publishedAt,
+      metricLabel: 'schedule',
+      metricValue: 1,
+    }),
+  );
+}
+
 async function collectXGrok(source, context) {
   if (!context.apiKey) {
     return {
@@ -1022,6 +1167,12 @@ async function collectSingleSource(source, context) {
       return { source, status: 'ok', items, meta: bunkaMeta, durationMs: Date.now() - startedAt };
     }
 
+    if (source.kind === 'bunkanews_schedule') {
+      const schedMeta = {};
+      const items = await collectBunkaNewsSchedule(source, context, schedMeta);
+      return { source, status: 'ok', items, meta: schedMeta, durationMs: Date.now() - startedAt };
+    }
+
     return {
       source,
       status: 'skipped',
@@ -1153,6 +1304,8 @@ module.exports = {
     buildXQuery,
     parseAmazonRankingPage,
     parseBunkaNewsArchive,
+    parseBunkaNewsSchedule,
+    filterScheduleByDateRange,
     isLikelyPriceText,
   },
 };

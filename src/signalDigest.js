@@ -193,10 +193,12 @@ function buildClusters(scoredSignals, maxClusters = 5) {
 }
 
 function buildMaterials(scoredSignals, limit = 30) {
-  // ランキング・セール（deals）と非ランキングを分離：limit制限から除外して全件保証
+  // ランキング・セール（deals）・スケジュールと非ランキングを分離：limit制限から除外して全件保証
+  const PASSTHROUGH_CATEGORIES = new Set(['ranking', 'deals', 'industry_schedule']);
   const rankingSignals = scoredSignals.filter((s) => s.sourceCategory === 'ranking');
   const dealsSignals = scoredSignals.filter((s) => s.sourceCategory === 'deals');
-  const otherSignals = scoredSignals.filter((s) => s.sourceCategory !== 'ranking' && s.sourceCategory !== 'deals');
+  const scheduleSignals = scoredSignals.filter((s) => s.sourceCategory === 'industry_schedule');
+  const otherSignals = scoredSignals.filter((s) => !PASSTHROUGH_CATEGORIES.has(s.sourceCategory));
 
   // Xはそのまま全件通す。その他ソースは1ソースあたり最大6件に制限してソース多様性を確保
   const PER_SOURCE_LIMIT = 6;
@@ -237,7 +239,12 @@ function buildMaterials(scoredSignals, limit = 30) {
   // dealsは全件そのまま含める
   const dealsMaterials = dealsSignals.map(postFromSignal);
 
-  return [...otherMaterials, ...rankingMaterials, ...dealsMaterials];
+  // スケジュールは日付順で全件含める
+  const scheduleMaterials = scheduleSignals
+    .sort((a, b) => String(a.publishedAt || '').localeCompare(String(b.publishedAt || '')))
+    .map(postFromSignal);
+
+  return [...otherMaterials, ...rankingMaterials, ...dealsMaterials, ...scheduleMaterials];
 }
 
 function buildCoverage(sourceStats, dedupedSignals, totalBeforeDedupe) {

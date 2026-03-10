@@ -6,7 +6,7 @@
 - 毎日 `08:00 JST` と `16:00 JST` に GitHub Actions が自動収集・GitHub Pagesに公開
 - `08:00 JST`: 全ソース更新（記事 / X / ランキング / セール）
 - `16:00 JST`: 記事 + X を再取得し、ランキング/セールは直近データを維持
-- 収集ソース: Google News RSS / 各書店ランキング / Yahoo! フォロー / はてブ / 新文化オンライン / HON.jp / Bunka News（出版・オーディオブック） / Kindle日替わりセール / 任意で X(Grok)
+- 収集ソース: Google News RSS / 各書店ランキング / Yahoo! フォロー / はてブ / 新文化オンライン / HON.jp / Bunka News（出版・デジタル・業界スケジュール） / Kindle日替わりセール / 任意で X(Grok)
 
 ## GitHub Pages への公開（社内限定ログイン）
 
