@@ -28,8 +28,6 @@ const X_QUERY_INCLUDE_TERMS = [
   'ベストセラー',
   '重版',
   'オーディオブック',
-  'Audible',
-  'audiobook.jp',
 ];
 
 const X_QUERY_EXCLUDE_TERMS = [

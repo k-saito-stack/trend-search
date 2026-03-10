@@ -8,8 +8,6 @@ test('buildXQuery contains required terms', () => {
 
   assert.ok(query.includes('書店'), 'missing 書店');
   assert.ok(query.includes('オーディオブック'), 'missing オーディオブック');
-  assert.ok(query.includes('Audible'), 'missing Audible');
-  assert.ok(query.includes('audiobook.jp'), 'missing audiobook.jp');
   assert.ok(query.includes('-同人誌'), 'missing -同人誌');
   assert.ok(query.includes('-コミケ'), 'missing -コミケ');
   assert.ok(query.includes('since:'), 'missing since:');

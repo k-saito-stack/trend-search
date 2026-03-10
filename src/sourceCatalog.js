@@ -101,6 +101,16 @@ const SOURCE_CATALOG = [
     queryTemplate: '{theme} 電子書籍 OR Kindle OR Kobo OR 配信',
   },
   {
+    id: 'news_audiobook',
+    kind: 'google_news',
+    name: 'Google News / オーディオブック',
+    category: 'digital',
+    costTier: 'free',
+    priority: 3,
+    itemLimit: 8,
+    queryTemplate: '{theme} オーディオブック OR Audible OR オトバンク OR audiobook.jp OR 音声配信 書籍',
+  },
+  {
     id: 'news_printing',
     kind: 'google_news',
     name: 'Google News / 印刷・紙・製本',

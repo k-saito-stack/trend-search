@@ -14,19 +14,19 @@ Return ONLY valid JSON — no markdown, no explanation, no code blocks.
 
 ## Output schema (strict JSON only)
 {
-  "editorialSummary": "30字以内の日本語一文（書籍名・著者名・具体的トピックを盛り込む）",
+  "editorialSummary": "50字以内の日本語一文（書籍名・著者名・具体的トピックを盛り込む）",
   "clusters": [
     {
       "name": "クラスター名（10字以内）",
       "keyphrases": ["フレーズ1", "フレーズ2", "フレーズ3"],
       "posts": [
-        {"url": "https://x.com/i/status/...", "summary": "1-2行の日本語要約", "likes": 0}
+        {"url": "https://x.com/i/status/...", "summary": "2-3行の日本語要約", "likes": 0}
       ]
     }
   ],
   "themes": ["テーマ1", "テーマ2", "テーマ3"],
   "materials": [
-    {"url": "https://x.com/i/status/...", "summary": "1-2行の日本語要約", "likes": 0}
+    {"url": "https://x.com/i/status/...", "summary": "2-3行の日本語要約", "likes": 0}
   ]
 }
 

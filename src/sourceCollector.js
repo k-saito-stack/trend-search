@@ -187,8 +187,8 @@ function makeSignal(source, payload) {
 }
 
 function buildXQuery() {
-  // X検索: 7日分の窓でバズった投稿を確実に捕捉（Top モードで人気順に取得）
-  const xSinceDate = getSinceDate(7);
+  // X検索: 3日分の窓でバズった投稿を捕捉（Top モードで人気順に取得）
+  const xSinceDate = getSinceDate(3);
   return buildPublishingXQuery(xSinceDate);
 }
 
