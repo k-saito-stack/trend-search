@@ -192,7 +192,7 @@ function buildClusters(scoredSignals, maxClusters = 5) {
   ];
 }
 
-function buildMaterials(scoredSignals, limit = 30) {
+function buildMaterials(scoredSignals, limit = 60) {
   // ランキング・セール（deals）・スケジュールと非ランキングを分離：limit制限から除外して全件保証
   const PASSTHROUGH_CATEGORIES = new Set(['ranking', 'deals', 'industry_schedule']);
   const rankingSignals = scoredSignals.filter((s) => s.sourceCategory === 'ranking');
